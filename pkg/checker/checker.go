@@ -252,6 +252,47 @@ func (c *Checker) TypeOf(n *Node) *Type {
 	return &Type{inner: t, checker: c.inner}
 }
 
+// ContextualTypeForArgument returns the parameter type a call
+// expression's argument at argIndex is contextually expected to
+// satisfy. Useful for rules that check argument shape against the
+// callee's signature without needing to resolve the signature manually.
+func (c *Checker) ContextualTypeForArgument(call *Node, argIndex int) *Type {
+	if call == nil || call.inner == nil {
+		return nil
+	}
+	t := c.inner.GetContextualTypeForArgumentAtIndex(call.inner, argIndex)
+	if t == nil {
+		return nil
+	}
+	return &Type{inner: t, checker: c.inner}
+}
+
+// IsAsyncFunction reports whether the node is a function-like AST node
+// declared with the `async` modifier.
+func IsAsyncFunction(n *Node) bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.IsAsyncFunction(n.inner)
+}
+
+// CallArguments returns the argument expressions of a CallExpression,
+// in source order. Returns nil for non-call nodes.
+func (n *Node) CallArguments() []*Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	if !ast.IsCallExpression(n.inner) {
+		return nil
+	}
+	args := n.inner.Arguments()
+	out := make([]*Node, 0, len(args))
+	for _, a := range args {
+		out = append(out, &Node{inner: a})
+	}
+	return out
+}
+
 // SymbolOf returns the symbol the node refers to, or nil.
 func (c *Checker) SymbolOf(n *Node) *Symbol {
 	if n == nil || n.inner == nil {
@@ -318,6 +359,39 @@ func (t *Type) IsNullOrUndefined() bool {
 		return false
 	}
 	return t.inner.Flags()&checker.TypeFlagsNullable != 0
+}
+
+// IsVoid reports whether the type is exactly the `void` type.
+func (t *Type) IsVoid() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsVoid != 0
+}
+
+// IsVoidLike reports whether the type is `void`, `undefined`, or a
+// union of those (the "callback returning void" position in
+// type-aware-rule shorthand).
+func (t *Type) IsVoidLike() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsVoidLike != 0
+}
+
+// CallSignatures returns the call signatures of the type. A function
+// type yields its single signature; an overloaded function yields all
+// of them; a non-callable yields an empty slice.
+func (t *Type) CallSignatures() []*Signature {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sigs := t.checker.GetCallSignatures(t.inner)
+	out := make([]*Signature, 0, len(sigs))
+	for _, s := range sigs {
+		out = append(out, &Signature{inner: s, checker: t.checker})
+	}
+	return out
 }
 
 // IsUnion reports whether the type is a union.
@@ -442,6 +516,24 @@ func lastIndex(s string, c byte) int {
 // Inner returns the underlying *checker.Type. Reserved for the wrapper
 // itself; rules must not reach into the result.
 func (t *Type) Inner() *checker.Type { return t.inner }
+
+// Signature is the wrapper view of a callable signature.
+type Signature struct {
+	inner   *checker.Signature
+	checker *checker.Checker
+}
+
+// ReturnType returns the signature's return type.
+func (s *Signature) ReturnType() *Type {
+	if s == nil || s.inner == nil {
+		return nil
+	}
+	t := s.checker.GetReturnTypeOfSignature(s.inner)
+	if t == nil {
+		return nil
+	}
+	return &Type{inner: t, checker: s.checker}
+}
 
 // Symbol is the wrapper view of a checker symbol.
 type Symbol struct {
