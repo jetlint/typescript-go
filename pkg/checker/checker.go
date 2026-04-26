@@ -112,6 +112,26 @@ func (p *Program) SourceFileByPath(path string) *SourceFile {
 // Checker returns the type checker bound to this program.
 func (p *Program) Checker() *Checker { return &Checker{inner: p.checker} }
 
+// HasTypeErrors reports whether the program contains any syntactic or
+// semantic diagnostics across its user source files. Used by the
+// linter to surface a degraded-mode signal: if the type graph is
+// unsound, lint diagnostics built on it may be wrong, and the AI
+// agent or human consumer needs to know.
+func (p *Program) HasTypeErrors() bool {
+	for _, f := range p.inner.SourceFiles() {
+		if f.IsDeclarationFile {
+			continue
+		}
+		if len(p.inner.GetSyntacticDiagnostics(context.Background(), f)) > 0 {
+			return true
+		}
+		if len(p.inner.GetSemanticDiagnostics(context.Background(), f)) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // SourceFile is the wrapper view of a parsed source file.
 type SourceFile struct{ inner *ast.SourceFile }
 
@@ -445,6 +465,21 @@ func (t *Type) IsThenable() bool {
 		}
 	}
 	return false
+}
+
+// ArrayElementType returns the element type of an array-like type, or
+// nil when the type is not array-like. Used by rules that need to
+// reason about the contents of arrays (e.g., the toString of `T[]`
+// invokes `T.toString` on each element).
+func (t *Type) ArrayElementType() *Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	elem := t.checker.GetElementTypeOfArrayType(t.inner)
+	if elem == nil {
+		return nil
+	}
+	return &Type{inner: elem, checker: t.checker}
 }
 
 // HasOwnToString reports whether the type declares its own toString
