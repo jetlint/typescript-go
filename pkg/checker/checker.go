@@ -287,6 +287,25 @@ func (c *Checker) ContextualTypeForArgument(call *Node, argIndex int) *Type {
 	return &Type{inner: t, checker: c.inner}
 }
 
+// ResolvedSignature returns the signature the type checker resolved
+// for a call expression. Returns nil for non-call nodes or when
+// resolution fails. Useful when a rule needs the callee's *declared*
+// return type rather than the call's contextually-narrowed type
+// (the two diverge when a callback context narrows the return).
+func (c *Checker) ResolvedSignature(call *Node) *Signature {
+	if call == nil || call.inner == nil {
+		return nil
+	}
+	if !ast.IsCallExpression(call.inner) {
+		return nil
+	}
+	sig := c.inner.GetResolvedSignature(call.inner)
+	if sig == nil {
+		return nil
+	}
+	return &Signature{inner: sig, checker: c.inner}
+}
+
 // IsAsyncFunction reports whether the node is a function-like AST node
 // declared with the `async` modifier.
 func IsAsyncFunction(n *Node) bool {
