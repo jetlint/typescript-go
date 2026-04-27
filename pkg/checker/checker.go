@@ -724,6 +724,191 @@ func (t *Type) IsBooleanLike() bool {
 	return t.inner.Flags()&checker.TypeFlagsBooleanLike != 0
 }
 
+// SymbolHasUserDeclaration reports whether the node's resolved symbol
+// has any declaration that lives in a non-declaration source file —
+// i.e. the user's own .ts source rather than a bundled lib.*.d.ts.
+// Used by rules that need to distinguish a global like `String` from
+// a user-shadowed redefinition.
+func (n *Node) SymbolHasUserDeclaration(c *Checker) bool {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return false
+	}
+	return symbolHasUserDeclaration(c.inner.GetSymbolAtLocation(n.inner))
+}
+
+func symbolHasUserDeclaration(sym *ast.Symbol) bool {
+	if sym == nil {
+		return false
+	}
+	for _, decl := range sym.Declarations {
+		sf := ast.GetSourceFileOfNode(decl)
+		if sf == nil {
+			continue
+		}
+		if !sf.IsDeclarationFile {
+			return true
+		}
+	}
+	return false
+}
+
+// SymbolDeclarationCount returns the count of declaration sites for
+// the resolved symbol. Useful for debugging why a symbol reports as
+// global vs user-shadowed.
+func (n *Node) SymbolDeclarationCount(c *Checker) int {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return 0
+	}
+	sym := c.inner.GetSymbolAtLocation(n.inner)
+	if sym == nil {
+		return 0
+	}
+	return len(sym.Declarations)
+}
+
+// SymbolUserDeclarationCount returns the count of declaration sites
+// in user (non-.d.ts) source files.
+func (n *Node) SymbolUserDeclarationCount(c *Checker) int {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return 0
+	}
+	sym := c.inner.GetSymbolAtLocation(n.inner)
+	if sym == nil {
+		return 0
+	}
+	count := 0
+	for _, decl := range sym.Declarations {
+		sf := ast.GetSourceFileOfNode(decl)
+		if sf != nil && !sf.IsDeclarationFile {
+			count++
+		}
+	}
+	return count
+}
+
+// PropertyNames returns the names of every apparent property on the
+// type. Intended for diagnostic introspection by rules that need to
+// detect shape-based conventions (e.g. presence of Symbol.toPrimitive).
+func (t *Type) PropertyNames() []string {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	props := t.checker.GetApparentProperties(t.inner)
+	out := make([]string, 0, len(props))
+	for _, p := range props {
+		out = append(out, p.Name)
+	}
+	return out
+}
+
+// FileHasTopLevelDeclaration reports whether the source file
+// containing this node declares a top-level function, variable, class,
+// or import binding with the given name. Cheap pre-check for
+// shadow-detection in rules where tsgo's own symbol resolution may
+// merge user functions with global ambients.
+func (n *Node) FileHasTopLevelDeclaration(name string) bool {
+	if n == nil || n.inner == nil || name == "" {
+		return false
+	}
+	sf := ast.GetSourceFileOfNode(n.inner)
+	if sf == nil {
+		return false
+	}
+	for _, stmt := range sf.Statements.Nodes {
+		switch stmt.Kind {
+		case ast.KindFunctionDeclaration:
+			if id := stmt.AsFunctionDeclaration().Name(); id != nil && id.Text() == name {
+				return true
+			}
+		case ast.KindClassDeclaration:
+			if id := stmt.AsClassDeclaration().Name(); id != nil && id.Text() == name {
+				return true
+			}
+		case ast.KindVariableStatement:
+			vs := stmt.AsVariableStatement()
+			if vs.DeclarationList == nil {
+				continue
+			}
+			for _, decl := range vs.DeclarationList.AsVariableDeclarationList().Declarations.Nodes {
+				if decl.Kind != ast.KindVariableDeclaration {
+					continue
+				}
+				if id := decl.AsVariableDeclaration().Name(); id != nil &&
+					id.Kind == ast.KindIdentifier && id.Text() == name {
+					return true
+				}
+			}
+		case ast.KindImportDeclaration:
+			ic := stmt.AsImportDeclaration().ImportClause
+			if ic == nil {
+				continue
+			}
+			cl := ic.AsImportClause()
+			if cl.Name() != nil && cl.Name().Text() == name {
+				return true
+			}
+			if cl.NamedBindings != nil {
+				switch cl.NamedBindings.Kind {
+				case ast.KindNamespaceImport:
+					if id := cl.NamedBindings.AsNamespaceImport().Name(); id != nil && id.Text() == name {
+						return true
+					}
+				case ast.KindNamedImports:
+					for _, spec := range cl.NamedBindings.AsNamedImports().Elements.Nodes {
+						if spec.Kind != ast.KindImportSpecifier {
+							continue
+						}
+						if id := spec.AsImportSpecifier().Name(); id != nil && id.Text() == name {
+							return true
+						}
+					}
+				}
+			}
+		}
+	}
+	return false
+}
+
+// TaggedTemplateInterpolations returns the interpolated expression
+// nodes (the `${expr}` parts) of a TaggedTemplateExpression in source
+// order. Empty for non-tagged-template nodes or untemplated tags.
+func (n *Node) TaggedTemplateInterpolations() []*Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTaggedTemplateExpression {
+		return nil
+	}
+	tmpl := n.inner.AsTaggedTemplateExpression().Template
+	if tmpl == nil {
+		return nil
+	}
+	if tmpl.Kind != ast.KindTemplateExpression {
+		return nil
+	}
+	te := tmpl.AsTemplateExpression()
+	if te.TemplateSpans == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(te.TemplateSpans.Nodes))
+	for _, span := range te.TemplateSpans.Nodes {
+		if span.Kind != ast.KindTemplateSpan {
+			continue
+		}
+		expr := span.AsTemplateSpan().Expression
+		if expr != nil {
+			out = append(out, &Node{inner: expr})
+		}
+	}
+	return out
+}
+
+// IsTypeParameter reports whether the type is a generic type parameter
+// (the `T` in `<T>` before any constraint resolution).
+func (t *Type) IsTypeParameter() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsTypeParameter != 0
+}
+
 // IsEnumLike reports whether the type is an enum (or enum-literal).
 func (t *Type) IsEnumLike() bool {
 	if t == nil || t.inner == nil {
@@ -1194,7 +1379,22 @@ func (t *Type) HasOwnToString() bool {
 	// "__@toPrimitive@..." (the well-known symbol gets a synthetic
 	// name); look it up by walking apparent properties.
 	for _, p := range t.checker.GetApparentProperties(t.inner) {
-		if len(p.Name) > 13 && p.Name[:13] == "__@toPrimitive" {
+		// Symbol.toPrimitive lives under a name like
+		// "<sentinel>@toPrimitive@N" — the prefix is a non-printable
+		// runtime sentinel. Match the well-known-symbol substring.
+		if containsSubstring(p.Name, "@toPrimitive@") {
+			return true
+		}
+	}
+	return false
+}
+
+func containsSubstring(s, sub string) bool {
+	if len(sub) == 0 {
+		return true
+	}
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
 			return true
 		}
 	}
@@ -1269,6 +1469,30 @@ func containingInterfaceOrClassName(n *ast.Node) string {
 func (t *Type) Inner() *checker.Type { return t.inner }
 
 // Signature is the wrapper view of a callable signature.
+// SignatureDeclarationFile returns the file path of the signature's
+// declaration site, or empty string when the signature has no
+// declaration (synthesized by the checker). Callers can use this to
+// distinguish a global ambient signature (in lib.*.d.ts) from a
+// user-supplied one.
+func (s *Signature) DeclarationIsUserSource() bool {
+	if s == nil || s.inner == nil {
+		return false
+	}
+	declFn := s.inner.Declaration
+	if declFn == nil {
+		return false
+	}
+	declNode := declFn()
+	if declNode == nil {
+		return false
+	}
+	sf := ast.GetSourceFileOfNode(declNode)
+	if sf == nil {
+		return false
+	}
+	return !sf.IsDeclarationFile
+}
+
 type Signature struct {
 	inner   *checker.Signature
 	checker *checker.Checker
