@@ -294,6 +294,8 @@ const (
 	KindEnumMember                  = Kind(ast.KindEnumMember)
 	KindPropertyDeclaration         = Kind(ast.KindPropertyDeclaration)
 	KindBigIntLiteral               = Kind(ast.KindBigIntLiteral)
+	KindUnionType                   = Kind(ast.KindUnionType)
+	KindIntersectionType            = Kind(ast.KindIntersectionType)
 	KindVariableDeclaration      = Kind(ast.KindVariableDeclaration)
 	KindStringLiteral            = Kind(ast.KindStringLiteral)
 	KindParenthesizedExpression  = Kind(ast.KindParenthesizedExpression)
