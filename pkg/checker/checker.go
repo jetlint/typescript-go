@@ -289,6 +289,7 @@ const (
 	KindFunctionDeclaration      = Kind(ast.KindFunctionDeclaration)
 	KindFunctionExpression       = Kind(ast.KindFunctionExpression)
 	KindMethodDeclaration        = Kind(ast.KindMethodDeclaration)
+	KindShorthandPropertyAssignment = Kind(ast.KindShorthandPropertyAssignment)
 	KindVariableDeclaration      = Kind(ast.KindVariableDeclaration)
 	KindStringLiteral            = Kind(ast.KindStringLiteral)
 	KindParenthesizedExpression  = Kind(ast.KindParenthesizedExpression)
@@ -404,6 +405,21 @@ func (c *Checker) ContextualTypeForArgument(call *Node, argIndex int) *Type {
 		return nil
 	}
 	t := c.inner.GetContextualTypeForArgumentAtIndex(call.inner, argIndex)
+	if t == nil {
+		return nil
+	}
+	return &Type{inner: t, checker: c.inner}
+}
+
+// ContextualTypeOf returns the contextually-expected type at the
+// given expression position (e.g. the property's declared type when n
+// is the value in an object literal whose target type is annotated).
+// Nil for positions without a contextual type.
+func (c *Checker) ContextualTypeOf(n *Node) *Type {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return nil
+	}
+	t := c.inner.GetContextualType(n.inner, checker.ContextFlagsNone)
 	if t == nil {
 		return nil
 	}
@@ -831,6 +847,34 @@ func (n *Node) PropertyInitializer() *Node {
 		return nil
 	}
 	init := n.inner.AsPropertyAssignment().Initializer
+	if init == nil {
+		return nil
+	}
+	return &Node{inner: init}
+}
+
+// VariableDeclarationType returns the explicit type annotation of a
+// VariableDeclaration (the `() => void` in `const f: () => void = ...`),
+// or nil for non-VariableDeclaration nodes or untyped declarations.
+func (n *Node) VariableDeclarationType() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindVariableDeclaration {
+		return nil
+	}
+	t := n.inner.AsVariableDeclaration().Type
+	if t == nil {
+		return nil
+	}
+	return &Node{inner: t}
+}
+
+// VariableDeclarationInitializer returns the initializer expression of
+// a VariableDeclaration. Nil if missing or for non-VariableDeclaration
+// nodes.
+func (n *Node) VariableDeclarationInitializer() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindVariableDeclaration {
+		return nil
+	}
+	init := n.inner.AsVariableDeclaration().Initializer
 	if init == nil {
 		return nil
 	}
