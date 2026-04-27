@@ -17,6 +17,7 @@ import (
 	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/jsnum"
 	"github.com/microsoft/typescript-go/internal/parser"
 	"github.com/microsoft/typescript-go/internal/scanner"
 	"github.com/microsoft/typescript-go/internal/tsoptions"
@@ -338,6 +339,14 @@ const (
 	KindYieldExpression          = Kind(ast.KindYieldExpression)
 	KindExpressionWithTypeArguments = Kind(ast.KindExpressionWithTypeArguments)
 	KindHeritageClause           = Kind(ast.KindHeritageClause)
+	KindImportKeyword            = Kind(ast.KindImportKeyword)
+	KindGetAccessor              = Kind(ast.KindGetAccessor)
+	KindSetAccessor              = Kind(ast.KindSetAccessor)
+	KindInterfaceDeclaration     = Kind(ast.KindInterfaceDeclaration)
+	KindClassDeclaration         = Kind(ast.KindClassDeclaration)
+	KindClassExpression          = Kind(ast.KindClassExpression)
+	KindTypeLiteral              = Kind(ast.KindTypeLiteral)
+	KindParameter                = Kind(ast.KindParameter)
 	KindVariableDeclarationList  = Kind(ast.KindVariableDeclarationList)
 )
 
@@ -623,6 +632,34 @@ func (n *Node) ElementAccessIndex() *Node {
 		return nil
 	}
 	return &Node{inner: idx}
+}
+
+// FunctionReturnTypeAnnotation returns the explicit return-type
+// annotation of a function-like node, or nil for inferred returns or
+// non-function nodes. The returned node is a TypeNode — convert to a
+// Type via Checker.TypeFromTypeNode.
+func (n *Node) FunctionReturnTypeAnnotation() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	fn := n.inner.FunctionLikeData()
+	if fn == nil || fn.Type == nil {
+		return nil
+	}
+	return &Node{inner: fn.Type}
+}
+
+// TypeFromTypeNode resolves a TypeNode to its Type. Used in tandem
+// with FunctionReturnTypeAnnotation to read declared return types.
+func (c *Checker) TypeFromTypeNode(n *Node) *Type {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return nil
+	}
+	t := c.inner.GetTypeFromTypeNode(n.inner)
+	if t == nil {
+		return nil
+	}
+	return &Type{inner: t, checker: c.inner}
 }
 
 // IsYieldDelegate reports whether a YieldExpression is `yield*` (a
@@ -1192,6 +1229,22 @@ func (t *Type) IsNumberLike() bool {
 	return t.inner.Flags()&checker.TypeFlagsNumberLike != 0
 }
 
+// NumericLiteralValue returns the literal numeric value if t is a
+// number-literal type. Returns (0, false) for non-number-literal types.
+func (t *Type) NumericLiteralValue() (float64, bool) {
+	if t == nil || t.inner == nil {
+		return 0, false
+	}
+	if t.inner.Flags()&checker.TypeFlagsNumberLiteral == 0 {
+		return 0, false
+	}
+	v := t.inner.AsLiteralType().Value()
+	if n, ok := v.(jsnum.Number); ok {
+		return float64(n), true
+	}
+	return 0, false
+}
+
 // IsBigIntLike reports whether the type is bigint or a bigint literal.
 func (t *Type) IsBigIntLike() bool {
 	if t == nil || t.inner == nil {
@@ -1626,6 +1679,20 @@ func (t *Type) IsTupleType() bool {
 		return false
 	}
 	return checker.IsTupleType(t.inner)
+}
+
+// ConstructSignatures returns the construct (`new`) signatures of the
+// type. Empty for types that aren't `new`-able.
+func (t *Type) ConstructSignatures() []*Signature {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sigs := t.checker.GetSignaturesOfType(t.inner, checker.SignatureKindConstruct)
+	out := make([]*Signature, 0, len(sigs))
+	for _, s := range sigs {
+		out = append(out, &Signature{inner: s, checker: t.checker})
+	}
+	return out
 }
 
 // IsAssignableTo reports whether this type is assignable to `target`.
