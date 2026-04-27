@@ -16,6 +16,8 @@ import (
 	"github.com/microsoft/typescript-go/internal/bundled"
 	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/compiler"
+	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/parser"
 	"github.com/microsoft/typescript-go/internal/scanner"
 	"github.com/microsoft/typescript-go/internal/tsoptions"
 	"github.com/microsoft/typescript-go/internal/tspath"
@@ -270,7 +272,51 @@ const (
 	KindStringLiteral            = Kind(ast.KindStringLiteral)
 	KindParenthesizedExpression  = Kind(ast.KindParenthesizedExpression)
 	KindVoidExpression           = Kind(ast.KindVoidExpression)
+	KindObjectLiteralExpression  = Kind(ast.KindObjectLiteralExpression)
+	KindArrayLiteralExpression   = Kind(ast.KindArrayLiteralExpression)
+	KindPropertyAssignment       = Kind(ast.KindPropertyAssignment)
+	KindNoSubstitutionTemplateLiteral = Kind(ast.KindNoSubstitutionTemplateLiteral)
+	KindNumericLiteral           = Kind(ast.KindNumericLiteral)
+	KindEqualsToken              = Kind(ast.KindEqualsToken)
+	KindCommaToken               = Kind(ast.KindCommaToken)
+	KindBarBarToken              = Kind(ast.KindBarBarToken)
+	KindAmpersandAmpersandToken  = Kind(ast.KindAmpersandAmpersandToken)
+	KindQuestionQuestionToken    = Kind(ast.KindQuestionQuestionToken)
+	KindSpreadElement            = Kind(ast.KindSpreadElement)
+	KindTrueKeyword              = Kind(ast.KindTrueKeyword)
+	KindFalseKeyword             = Kind(ast.KindFalseKeyword)
+	KindNullKeyword              = Kind(ast.KindNullKeyword)
 )
+
+// ParseFile parses a single source file from text without loading a full
+// program. Useful for tooling that needs the AST but no type information,
+// e.g. extracting test fixtures from a JS/TS source file. The returned
+// SourceFile is detached from any program; type queries against it are
+// not available.
+func ParseFile(filePath, sourceText string) *SourceFile {
+	opts := ast.SourceFileParseOptions{
+		FileName: filePath,
+		Path:     tspath.Path(filePath),
+	}
+	kind := core.GetScriptKindFromFileName(filePath)
+	if kind == core.ScriptKindUnknown {
+		kind = core.ScriptKindTS
+	}
+	inner := parser.ParseSourceFile(opts, sourceText, kind)
+	return &SourceFile{inner: inner}
+}
+
+// LiteralText returns the parsed text value of a literal-bearing node
+// (StringLiteral, NoSubstitutionTemplateLiteral, NumericLiteral,
+// Identifier, etc.). Empty string for non-literal nodes. Used by
+// tooling that needs to extract source-code-as-data, e.g. fixture
+// loaders that read typescript-eslint's test files.
+func (n *Node) LiteralText() string {
+	if n == nil || n.inner == nil {
+		return ""
+	}
+	return n.inner.Text()
+}
 
 // Checker performs type-aware queries against a Program.
 type Checker struct{ inner *checker.Checker }
@@ -345,6 +391,155 @@ func (n *Node) CallArguments() []*Node {
 		out = append(out, &Node{inner: a})
 	}
 	return out
+}
+
+// CalleeExpression returns the callee of a CallExpression (the
+// expression in the position of `f` in `f(args)`). Nil for non-calls.
+func (n *Node) CalleeExpression() *Node {
+	if n == nil || n.inner == nil || !ast.IsCallExpression(n.inner) {
+		return nil
+	}
+	return &Node{inner: n.inner.Expression()}
+}
+
+// PropertyAccessName returns the right-hand identifier text of a
+// PropertyAccessExpression (the `b` in `a.b`). Empty for other nodes.
+func (n *Node) PropertyAccessName() string {
+	if n == nil || n.inner == nil || !ast.IsPropertyAccessExpression(n.inner) {
+		return ""
+	}
+	name := n.inner.AsPropertyAccessExpression().Name()
+	if name == nil {
+		return ""
+	}
+	return name.Text()
+}
+
+// PropertyAccessReceiver returns the left-hand expression of a
+// PropertyAccessExpression (the `a` in `a.b`). Nil for other nodes.
+func (n *Node) PropertyAccessReceiver() *Node {
+	if n == nil || n.inner == nil || !ast.IsPropertyAccessExpression(n.inner) {
+		return nil
+	}
+	expr := n.inner.AsPropertyAccessExpression().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+// BinaryOperatorKind returns the AST Kind of the operator token of a
+// BinaryExpression (e.g., KindEqualsToken for `=`, KindCommaToken for
+// `,`). Returns 0 for non-binary nodes.
+func (n *Node) BinaryOperatorKind() Kind {
+	if n == nil || n.inner == nil || !ast.IsBinaryExpression(n.inner) {
+		return 0
+	}
+	tok := n.inner.AsBinaryExpression().OperatorToken
+	if tok == nil {
+		return 0
+	}
+	return Kind(tok.Kind)
+}
+
+// BinaryLeft returns the left operand of a BinaryExpression, or nil.
+func (n *Node) BinaryLeft() *Node {
+	if n == nil || n.inner == nil || !ast.IsBinaryExpression(n.inner) {
+		return nil
+	}
+	left := n.inner.AsBinaryExpression().Left
+	if left == nil {
+		return nil
+	}
+	return &Node{inner: left}
+}
+
+// ConditionalBranches returns the (whenTrue, whenFalse) branches of a
+// ConditionalExpression. Both nil for non-conditional nodes.
+func (n *Node) ConditionalBranches() (whenTrue, whenFalse *Node) {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindConditionalExpression {
+		return nil, nil
+	}
+	c := n.inner.AsConditionalExpression()
+	if c.WhenTrue != nil {
+		whenTrue = &Node{inner: c.WhenTrue}
+	}
+	if c.WhenFalse != nil {
+		whenFalse = &Node{inner: c.WhenFalse}
+	}
+	return
+}
+
+// BinaryRight returns the right operand of a BinaryExpression, or nil.
+func (n *Node) BinaryRight() *Node {
+	if n == nil || n.inner == nil || !ast.IsBinaryExpression(n.inner) {
+		return nil
+	}
+	right := n.inner.AsBinaryExpression().Right
+	if right == nil {
+		return nil
+	}
+	return &Node{inner: right}
+}
+
+// ObjectProperties returns the property nodes of an ObjectLiteralExpression
+// in source order (typically PropertyAssignment nodes). Nil otherwise.
+func (n *Node) ObjectProperties() []*Node {
+	if n == nil || n.inner == nil || !ast.IsObjectLiteralExpression(n.inner) {
+		return nil
+	}
+	props := n.inner.AsObjectLiteralExpression().Properties
+	if props == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(props.Nodes))
+	for _, p := range props.Nodes {
+		out = append(out, &Node{inner: p})
+	}
+	return out
+}
+
+// ArrayElements returns the element nodes of an ArrayLiteralExpression
+// in source order. Nil for non-array nodes.
+func (n *Node) ArrayElements() []*Node {
+	if n == nil || n.inner == nil || !ast.IsArrayLiteralExpression(n.inner) {
+		return nil
+	}
+	elems := n.inner.AsArrayLiteralExpression().Elements
+	if elems == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(elems.Nodes))
+	for _, e := range elems.Nodes {
+		out = append(out, &Node{inner: e})
+	}
+	return out
+}
+
+// PropertyName returns the textual key of a PropertyAssignment
+// (the `code` in `{ code: '...' }`). Empty for other nodes.
+func (n *Node) PropertyName() string {
+	if n == nil || n.inner == nil || !ast.IsPropertyAssignment(n.inner) {
+		return ""
+	}
+	name := n.inner.AsPropertyAssignment().Name()
+	if name == nil {
+		return ""
+	}
+	return name.Text()
+}
+
+// PropertyInitializer returns the value expression of a PropertyAssignment
+// (the `'...'` in `{ code: '...' }`). Nil for other nodes.
+func (n *Node) PropertyInitializer() *Node {
+	if n == nil || n.inner == nil || !ast.IsPropertyAssignment(n.inner) {
+		return nil
+	}
+	init := n.inner.AsPropertyAssignment().Initializer
+	if init == nil {
+		return nil
+	}
+	return &Node{inner: init}
 }
 
 // SymbolOf returns the symbol the node refers to, or nil.
@@ -499,6 +694,229 @@ func (t *Type) IsThenable() bool {
 		}
 	}
 	return false
+}
+
+// IsPromise reports whether the type is the global Promise (or a generic
+// Promise<T>) by branded symbol name. Recurses through unions,
+// intersections, and base-class hierarchies so subclasses of Promise
+// (e.g., `class CanThen extends Promise<T>`) and intersections like
+// `Promise<T> & {...}` are matched. Custom thenables that don't share
+// an ancestor with `Promise` are not — that's the
+// `checkThenables: false` default of typescript-eslint's rule.
+func (t *Type) IsPromise() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.isPromiseDeep(make(map[*checker.Type]struct{}))
+}
+
+func (t *Type) isPromiseDeep(seen map[*checker.Type]struct{}) bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	if _, ok := seen[t.inner]; ok {
+		return false
+	}
+	seen[t.inner] = struct{}{}
+	if t.IsUnion() || t.IsIntersection() {
+		for _, m := range t.unionOrIntersectionMembers() {
+			if m.isPromiseDeep(seen) {
+				return true
+			}
+		}
+		return false
+	}
+	sym := t.inner.Symbol()
+	if sym != nil && sym.Name == "Promise" {
+		return true
+	}
+	// GetBaseTypes is only safe when the type's data is an
+	// InterfaceType (declared classes/interfaces, not generic
+	// instantiations or anonymous types). For everything else upstream
+	// panics. We restrict to symbols declared as a class — the case
+	// we care about is `class MyPromise extends Promise<T>`.
+	if sym == nil || sym.Flags&ast.SymbolFlagsClass == 0 {
+		return false
+	}
+	bases := safeGetBaseTypes(t.checker, t.inner)
+	if len(bases) == 0 {
+		// Generic class instantiations (e.g. `MyPromise<number>` for
+		// `class MyPromise<T> extends Promise<T> {}`) are
+		// TypeReferences and have no resolvable base types directly —
+		// the bases live on the originating generic. Try the symbol's
+		// declared base via its declarations.
+		bases = baseTypesFromClassDeclarations(t.checker, sym)
+	}
+	for _, base := range bases {
+		bt := &Type{inner: base, checker: t.checker}
+		if bt.isPromiseDeep(seen) {
+			return true
+		}
+	}
+	return false
+}
+
+// baseTypesFromClassDeclarations resolves base types by reading the
+// `extends` clause from each class declaration tied to the symbol.
+// This works for generic-class instantiations where GetBaseTypes
+// returns nothing because the underlying TypeReference has no
+// InterfaceType data.
+func baseTypesFromClassDeclarations(c *checker.Checker, sym *ast.Symbol) []*checker.Type {
+	if sym == nil {
+		return nil
+	}
+	var out []*checker.Type
+	for _, decl := range sym.Declarations {
+		if !ast.IsClassDeclaration(decl) && !ast.IsClassExpression(decl) {
+			continue
+		}
+		clauses := decl.ClassLikeData().HeritageClauses
+		if clauses == nil {
+			continue
+		}
+		for _, clause := range clauses.Nodes {
+			if clause.Kind != ast.KindHeritageClause || clause.AsHeritageClause().Token != ast.KindExtendsKeyword {
+				continue
+			}
+			types := clause.AsHeritageClause().Types
+			if types == nil {
+				continue
+			}
+			for _, t := range types.Nodes {
+				bt := c.GetTypeFromTypeNode(t)
+				if bt != nil {
+					out = append(out, bt)
+				}
+			}
+		}
+	}
+	return out
+}
+
+// safeGetBaseTypes wraps Checker.GetBaseTypes with a panic recovery.
+// Upstream's getBaseTypes assumes the type's data is an InterfaceType
+// and dereferences without checking; for some object types that
+// assumption doesn't hold and the call panics. We treat a panic as
+// "no base types" to keep callers from having to encode the upstream's
+// internal invariants.
+func safeGetBaseTypes(c *checker.Checker, t *checker.Type) (out []*checker.Type) {
+	defer func() { _ = recover() }()
+	return c.GetBaseTypes(t)
+}
+
+// SymbolName returns the name of the symbol the type refers to (e.g.
+// "Promise" for `Promise<T>`, "Array" for `Array<T>`, "MyClass" for a
+// class instance type). Empty for anonymous or symbol-less types.
+func (t *Type) SymbolName() string {
+	if t == nil || t.inner == nil {
+		return ""
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return ""
+	}
+	return sym.Name
+}
+
+// AliasSymbolName returns the name of the type alias this type was
+// instantiated through, if any. For `type Foo = Promise<X> & { ... }`,
+// references to `Foo` produce a type whose AliasSymbolName is "Foo"
+// even though the underlying SymbolName might be "Promise" or empty.
+// Empty for types not introduced via a type alias.
+func (t *Type) AliasSymbolName() string {
+	if t == nil || t.inner == nil {
+		return ""
+	}
+	sym := t.inner.AliasSymbol()
+	if sym == nil {
+		return ""
+	}
+	return sym.Name
+}
+
+// IsIntersection reports whether the type is an intersection (T & U).
+func (t *Type) IsIntersection() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.IsIntersection()
+}
+
+// unionOrIntersectionMembers returns the constituent types of a union
+// or intersection. Empty for other types.
+func (t *Type) unionOrIntersectionMembers() []*Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	if !t.IsUnion() && !t.IsIntersection() {
+		return nil
+	}
+	parts := t.inner.Types()
+	out := make([]*Type, 0, len(parts))
+	for _, p := range parts {
+		out = append(out, &Type{inner: p, checker: t.checker})
+	}
+	return out
+}
+
+// IntersectionMembers returns the constituent types of an intersection,
+// or a single-element slice for non-intersection types.
+func (t *Type) IntersectionMembers() []*Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	if !t.IsIntersection() {
+		return []*Type{t}
+	}
+	return t.unionOrIntersectionMembers()
+}
+
+// BaseConstraint returns the base constraint of a generic type
+// parameter (the `T` in `<T extends X>` resolves to `X`). Nil for
+// non-generic types or types without a constraint.
+func (t *Type) BaseConstraint() *Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	c := t.checker.GetBaseConstraintOfType(t.inner)
+	if c == nil {
+		return nil
+	}
+	return &Type{inner: c, checker: t.checker}
+}
+
+// IsTupleType reports whether the type is a tuple. Tuples are ordered,
+// fixed-length array types whose elements may have distinct types.
+func (t *Type) IsTupleType() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return checker.IsTupleType(t.inner)
+}
+
+// IsArrayLikeType reports whether the type is array-like — Array<T>,
+// readonly array, or any type with a numeric index signature and
+// `length`. Tuples are also array-like.
+func (t *Type) IsArrayLikeType() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.checker.IsArrayLikeType(t.inner)
+}
+
+// TypeArguments returns the type arguments of a generic type reference
+// (e.g., the element types of a tuple, or the `T` in `Array<T>`). Empty
+// for non-generic types.
+func (t *Type) TypeArguments() []*Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	args := t.checker.GetTypeArguments(t.inner)
+	out := make([]*Type, 0, len(args))
+	for _, a := range args {
+		out = append(out, &Type{inner: a, checker: t.checker})
+	}
+	return out
 }
 
 // ArrayElementType returns the element type of an array-like type, or
