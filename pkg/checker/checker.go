@@ -420,10 +420,14 @@ func (n *Node) CallArguments() []*Node {
 	return out
 }
 
-// CalleeExpression returns the callee of a CallExpression (the
-// expression in the position of `f` in `f(args)`). Nil for non-calls.
+// CalleeExpression returns the callee of a CallExpression or
+// NewExpression (the expression in the position of `f` in `f(args)`
+// or `new C(args)`). Nil for other node kinds.
 func (n *Node) CalleeExpression() *Node {
-	if n == nil || n.inner == nil || !ast.IsCallExpression(n.inner) {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	if !ast.IsCallExpression(n.inner) && !ast.IsNewExpression(n.inner) {
 		return nil
 	}
 	return &Node{inner: n.inner.Expression()}
@@ -801,6 +805,91 @@ func (t *Type) PropertyNames() []string {
 	return out
 }
 
+// IdentifierResolvesToCatchBinding reports whether the identifier
+// resolves to a variable bound by a catch clause (`catch (e)`) or
+// to a parameter of a Promise `.catch(handler)` / `.then(_, handler)`
+// callback. Used by rules that allow re-throwing caught values
+// (only-throw-error, no-throw-literal).
+func (n *Node) IdentifierResolvesToCatchBinding(c *Checker) bool {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return false
+	}
+	if n.inner.Kind != ast.KindIdentifier {
+		return false
+	}
+	sym := c.inner.GetSymbolAtLocation(n.inner)
+	if sym == nil {
+		return false
+	}
+	for _, decl := range sym.Declarations {
+		if decl.Kind == ast.KindVariableDeclaration && decl.Parent != nil &&
+			decl.Parent.Kind == ast.KindCatchClause {
+			return true
+		}
+		if decl.Kind == ast.KindParameter && isPromiseCatchCallbackParameter(decl) {
+			return true
+		}
+	}
+	return false
+}
+
+// isPromiseCatchCallbackParameter reports whether the parameter
+// declaration belongs to an arrow/function expression that is being
+// passed to a Promise `.catch(handler)` or `.then(_, handler)` call.
+// Rejects rest parameters and calls with leading spread arguments —
+// in those shapes, the parameter doesn't reliably hold the rejection.
+func isPromiseCatchCallbackParameter(param *ast.Node) bool {
+	pd := param.AsParameterDeclaration()
+	if pd == nil {
+		return false
+	}
+	if pd.DotDotDotToken != nil {
+		// Rest parameter: e is an array, not the rejection value.
+		return false
+	}
+	fn := param.Parent
+	if fn == nil {
+		return false
+	}
+	if fn.Kind != ast.KindArrowFunction && fn.Kind != ast.KindFunctionExpression {
+		return false
+	}
+	call := fn.Parent
+	if call == nil || call.Kind != ast.KindCallExpression {
+		return false
+	}
+	callee := call.AsCallExpression().Expression
+	if callee == nil || callee.Kind != ast.KindPropertyAccessExpression {
+		return false
+	}
+	name := callee.AsPropertyAccessExpression().Name()
+	if name == nil {
+		return false
+	}
+	method := name.Text()
+	args := call.AsCallExpression().Arguments
+	if args == nil {
+		return false
+	}
+	// Any spread argument before our function makes positional matching
+	// unreliable.
+	for _, a := range args.Nodes {
+		if a == fn {
+			break
+		}
+		if a.Kind == ast.KindSpreadElement {
+			return false
+		}
+	}
+	if method == "catch" && len(args.Nodes) >= 1 && args.Nodes[0] == fn {
+		return true
+	}
+	if method == "then" && len(args.Nodes) >= 2 && args.Nodes[1] == fn {
+		return true
+	}
+	return false
+}
+
 // FileHasTopLevelDeclaration reports whether the source file
 // containing this node declares a top-level function, variable, class,
 // or import binding with the given name. Cheap pre-check for
@@ -898,6 +987,76 @@ func (n *Node) TaggedTemplateInterpolations() []*Node {
 		}
 	}
 	return out
+}
+
+// IsImportedIdentifier reports whether the identifier resolves to a
+// symbol declared by an import statement (ImportClause, ImportSpecifier,
+// NamespaceImport).
+func (n *Node) IsImportedIdentifier(c *Checker) bool {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return false
+	}
+	if n.inner.Kind != ast.KindIdentifier {
+		return false
+	}
+	sym := c.inner.GetSymbolAtLocation(n.inner)
+	if sym == nil {
+		return false
+	}
+	for _, decl := range sym.Declarations {
+		switch decl.Kind {
+		case ast.KindImportSpecifier, ast.KindImportClause,
+			ast.KindNamespaceImport, ast.KindImportEqualsDeclaration:
+			return true
+		}
+	}
+	return false
+}
+
+// SymbolIsAmbient reports whether the type's declaring symbol comes
+// from a declaration file (lib.*.d.ts or installed @types). When true,
+// the type is the global ambient one rather than a user-redeclared
+// shadow with the same name.
+func (t *Type) SymbolIsAmbient() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return false
+	}
+	for _, decl := range sym.Declarations {
+		sf := ast.GetSourceFileOfNode(decl)
+		if sf == nil {
+			continue
+		}
+		if sf.IsDeclarationFile {
+			return true
+		}
+	}
+	return false
+}
+
+// SymbolIsUserDeclared reports whether the type's declaring symbol has
+// any declaration in user (non-.d.ts) source.
+func (t *Type) SymbolIsUserDeclared() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return false
+	}
+	for _, decl := range sym.Declarations {
+		sf := ast.GetSourceFileOfNode(decl)
+		if sf == nil {
+			continue
+		}
+		if !sf.IsDeclarationFile {
+			return true
+		}
+	}
+	return false
 }
 
 // IsTypeParameter reports whether the type is a generic type parameter
@@ -1241,7 +1400,12 @@ func (t *Type) BaseTypeNames() []string {
 					continue
 				}
 				h := clause.AsHeritageClause()
-				if h.Token != ast.KindExtendsKeyword && h.Token != ast.KindImplementsKeyword {
+				// Only follow `extends` (structural inheritance for
+				// interfaces, true class extension for classes).
+				// `implements` is a constraint check, not a runtime
+				// inheritance — instances don't carry the implemented
+				// interface's prototype chain.
+				if h.Token != ast.KindExtendsKeyword {
 					continue
 				}
 				if h.Types == nil {
