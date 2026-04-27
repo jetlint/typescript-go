@@ -301,7 +301,15 @@ const (
 	KindTypeAssertionExpression  = Kind(ast.KindTypeAssertionExpression)
 	KindNonNullExpression        = Kind(ast.KindNonNullExpression)
 	KindDeleteExpression         = Kind(ast.KindDeleteExpression)
-	KindMinusToken               = Kind(ast.KindMinusToken)
+	KindMinusToken                       = Kind(ast.KindMinusToken)
+	KindEqualsEqualsToken                = Kind(ast.KindEqualsEqualsToken)
+	KindEqualsEqualsEqualsToken          = Kind(ast.KindEqualsEqualsEqualsToken)
+	KindExclamationEqualsToken           = Kind(ast.KindExclamationEqualsToken)
+	KindExclamationEqualsEqualsToken     = Kind(ast.KindExclamationEqualsEqualsToken)
+	KindLessThanToken                    = Kind(ast.KindLessThanToken)
+	KindLessThanEqualsToken              = Kind(ast.KindLessThanEqualsToken)
+	KindGreaterThanToken                 = Kind(ast.KindGreaterThanToken)
+	KindGreaterThanEqualsToken           = Kind(ast.KindGreaterThanEqualsToken)
 	KindTrueKeyword              = Kind(ast.KindTrueKeyword)
 	KindFalseKeyword             = Kind(ast.KindFalseKeyword)
 	KindNullKeyword              = Kind(ast.KindNullKeyword)
@@ -508,6 +516,24 @@ func (n *Node) WhileCondition() *Node {
 	return nil
 }
 
+// ForInOrOfExpression returns the iteration expression of a
+// ForInStatement or ForOfStatement (the `xs` in `for (k in xs)` or
+// `for (k of xs)`). Nil for other kinds.
+func (n *Node) ForInOrOfExpression() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	switch n.inner.Kind {
+	case ast.KindForInStatement, ast.KindForOfStatement:
+		expr := n.inner.AsForInOrOfStatement().Expression
+		if expr == nil {
+			return nil
+		}
+		return &Node{inner: expr}
+	}
+	return nil
+}
+
 // ForStatementCondition returns the condition (middle) expression of
 // a ForStatement, or nil if the for has no condition.
 func (n *Node) ForStatementCondition() *Node {
@@ -696,6 +722,14 @@ func (t *Type) IsBooleanLike() bool {
 		return false
 	}
 	return t.inner.Flags()&checker.TypeFlagsBooleanLike != 0
+}
+
+// IsEnumLike reports whether the type is an enum (or enum-literal).
+func (t *Type) IsEnumLike() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&(checker.TypeFlagsEnum|checker.TypeFlagsEnumLiteral) != 0
 }
 
 // IsNever reports whether the type is `never` (the empty bottom type).
