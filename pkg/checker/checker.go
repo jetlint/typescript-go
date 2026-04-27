@@ -462,6 +462,16 @@ func HasAsyncModifier(n *Node) bool {
 	return false
 }
 
+// HasAbstractModifier reports whether a method-like has the `abstract`
+// keyword. Abstract methods carry only a signature and cannot be
+// declared async.
+func (n *Node) HasAbstractModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsAbstract)
+}
+
 func IsAsyncFunction(n *Node) bool {
 	if n == nil || n.inner == nil {
 		return false
