@@ -853,6 +853,20 @@ func (n *Node) PropertyInitializer() *Node {
 	return &Node{inner: init}
 }
 
+// YieldOperand returns the operand expression of a YieldExpression
+// (the `X` in `yield X` or `yield* X`). For `yield;` (no operand),
+// returns nil. Skips the `*` token so callers don't have to.
+func (n *Node) YieldOperand() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindYieldExpression {
+		return nil
+	}
+	expr := n.inner.AsYieldExpression().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
 // FunctionBody returns the body of a function-like node, or nil for
 // non-function nodes or function declarations without a body. For
 // ArrowFunctions with an expression body, returns the expression node;
