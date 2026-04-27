@@ -326,6 +326,7 @@ const (
 	KindCaseClause               = Kind(ast.KindCaseClause)
 	KindElementAccessExpression  = Kind(ast.KindElementAccessExpression)
 	KindAsExpression             = Kind(ast.KindAsExpression)
+	KindSatisfiesExpression      = Kind(ast.KindSatisfiesExpression)
 	KindTypeAssertionExpression  = Kind(ast.KindTypeAssertionExpression)
 	KindNonNullExpression        = Kind(ast.KindNonNullExpression)
 	KindDeleteExpression         = Kind(ast.KindDeleteExpression)
