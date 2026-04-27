@@ -292,6 +292,7 @@ const (
 	KindShorthandPropertyAssignment = Kind(ast.KindShorthandPropertyAssignment)
 	KindEnumDeclaration             = Kind(ast.KindEnumDeclaration)
 	KindEnumMember                  = Kind(ast.KindEnumMember)
+	KindPropertyDeclaration         = Kind(ast.KindPropertyDeclaration)
 	KindVariableDeclaration      = Kind(ast.KindVariableDeclaration)
 	KindStringLiteral            = Kind(ast.KindStringLiteral)
 	KindParenthesizedExpression  = Kind(ast.KindParenthesizedExpression)
@@ -957,6 +958,60 @@ func (n *Node) VariableDeclarationType() *Node {
 		return nil
 	}
 	return &Node{inner: t}
+}
+
+// ParameterTypeAnnotation returns the explicit type annotation of a
+// Parameter node, or nil for parameters without one.
+func (n *Node) ParameterTypeAnnotation() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindParameter {
+		return nil
+	}
+	t := n.inner.AsParameterDeclaration().Type
+	if t == nil {
+		return nil
+	}
+	return &Node{inner: t}
+}
+
+// PropertyDeclarationType returns the explicit type annotation of a
+// class PropertyDeclaration, or nil for fields without one.
+func (n *Node) PropertyDeclarationType() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindPropertyDeclaration {
+		return nil
+	}
+	t := n.inner.AsPropertyDeclaration().Type
+	if t == nil {
+		return nil
+	}
+	return &Node{inner: t}
+}
+
+// ParameterInitializer returns the default-value expression of a
+// Parameter (the `1 as any` in `(a = 1 as any) => {}`). Nil for
+// parameters without a default and non-Parameter nodes.
+func (n *Node) ParameterInitializer() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindParameter {
+		return nil
+	}
+	init := n.inner.AsParameterDeclaration().Initializer
+	if init == nil {
+		return nil
+	}
+	return &Node{inner: init}
+}
+
+// PropertyDeclarationInitializer returns the initializer expression of
+// a class PropertyDeclaration (`a` in `class C { a = 1 }`). Nil for
+// fields without initializer or non-PropertyDeclaration nodes.
+func (n *Node) PropertyDeclarationInitializer() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindPropertyDeclaration {
+		return nil
+	}
+	init := n.inner.AsPropertyDeclaration().Initializer
+	if init == nil {
+		return nil
+	}
+	return &Node{inner: init}
 }
 
 // VariableDeclarationInitializer returns the initializer expression of
