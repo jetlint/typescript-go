@@ -865,6 +865,16 @@ func (n *Node) PropertyInitializer() *Node {
 	return &Node{inner: init}
 }
 
+// IsAwaitUsingDeclaration reports whether a VariableDeclarationList
+// is an `await using` declaration. The wrapper hides the bit-twiddle
+// callers would otherwise need to do on combined node flags.
+func (n *Node) IsAwaitUsingDeclaration() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.IsVarAwaitUsing(n.inner)
+}
+
 // EnumMemberInitializer returns the initializer expression of an
 // EnumMember (the `'a'` in `Apple = 'a'`). Nil for members with no
 // explicit initializer or non-EnumMember nodes.
