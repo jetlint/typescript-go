@@ -1059,6 +1059,23 @@ func (t *Type) SymbolIsUserDeclared() bool {
 	return false
 }
 
+// IsNumberLike reports whether the type is number, a number literal,
+// or any other number-shaped type (including enum members).
+func (t *Type) IsNumberLike() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsNumberLike != 0
+}
+
+// IsBigIntLike reports whether the type is bigint or a bigint literal.
+func (t *Type) IsBigIntLike() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsBigIntLike != 0
+}
+
 // IsTypeParameter reports whether the type is a generic type parameter
 // (the `T` in `<T>` before any constraint resolution).
 func (t *Type) IsTypeParameter() bool {
@@ -1455,6 +1472,17 @@ func (t *Type) IsTupleType() bool {
 		return false
 	}
 	return checker.IsTupleType(t.inner)
+}
+
+// HasNumericIndex reports whether the type has a numeric index
+// signature (`{ [k: number]: V }`). Catches array-likes such as
+// HTMLCollection, NodeList, IArguments that aren't full ReadonlyArray
+// subtypes.
+func (t *Type) HasNumericIndex() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.checker.HasNumericIndexSignature(t.inner)
 }
 
 // IsArrayLikeType reports whether the type is array-like — Array<T>,

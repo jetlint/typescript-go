@@ -178,6 +178,17 @@ func IsTupleType(t *Type) bool {
 	return isTupleType(t)
 }
 
+// HasNumericIndexSignature reports whether the type has a numeric
+// index signature (`{ [k: number]: V }`). Useful for detecting
+// array-like values (HTMLCollection, NodeList, IArguments) that
+// aren't strict subtypes of ReadonlyArray.
+func (c *Checker) HasNumericIndexSignature(t *Type) bool {
+	if t == nil {
+		return false
+	}
+	return c.getIndexTypeOfType(t, c.numberType) != nil
+}
+
 // AliasSymbol returns the symbol of the type alias that produced this
 // type, or nil if the type was not produced via a type alias. For
 // example, `type Foo = Promise<X> & {hey?: string}` declares an alias
