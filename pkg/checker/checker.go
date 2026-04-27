@@ -1143,6 +1143,64 @@ func (n *Node) SymbolUserDeclarationCount(c *Checker) int {
 	return count
 }
 
+// HeritageTypes returns the resolved types of every heritage entry
+// (extends and implements clauses) on a class or interface declaration.
+// Returns nil for non-class/interface nodes.
+func (n *Node) HeritageTypes(c *Checker) []*Type {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return nil
+	}
+	var clauses *ast.NodeList
+	switch n.inner.Kind {
+	case ast.KindClassDeclaration, ast.KindClassExpression:
+		clauses = n.inner.ClassLikeData().HeritageClauses
+	case ast.KindInterfaceDeclaration:
+		clauses = n.inner.AsInterfaceDeclaration().HeritageClauses
+	default:
+		return nil
+	}
+	if clauses == nil {
+		return nil
+	}
+	var out []*Type
+	for _, clause := range clauses.Nodes {
+		if clause.Kind != ast.KindHeritageClause {
+			continue
+		}
+		h := clause.AsHeritageClause()
+		if h.Types == nil {
+			continue
+		}
+		for _, typeNode := range h.Types.Nodes {
+			t := c.inner.GetTypeFromTypeNode(typeNode)
+			if t == nil {
+				continue
+			}
+			out = append(out, &Type{inner: t, checker: c.inner})
+		}
+	}
+	return out
+}
+
+// PropertyType returns the type of the named property on t, or nil
+// if the property doesn't exist on the type.
+func (t *Type) PropertyType(name string) *Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	for _, p := range t.checker.GetApparentProperties(t.inner) {
+		if p.Name != name {
+			continue
+		}
+		pt := t.checker.GetTypeOfSymbol(p)
+		if pt == nil {
+			return nil
+		}
+		return &Type{inner: pt, checker: t.checker}
+	}
+	return nil
+}
+
 // PropertyNames returns the names of every apparent property on the
 // type. Intended for diagnostic introspection by rules that need to
 // detect shape-based conventions (e.g. presence of Symbol.toPrimitive).
