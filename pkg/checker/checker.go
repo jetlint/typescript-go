@@ -2042,6 +2042,18 @@ func (s *Symbol) Name() string {
 	return s.inner.Name
 }
 
+// Declarations returns the declarations of the symbol as wrapper Nodes.
+func (s *Symbol) Declarations() []*Node {
+	if s == nil || s.inner == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(s.inner.Declarations))
+	for _, d := range s.inner.Declarations {
+		out = append(out, &Node{inner: d})
+	}
+	return out
+}
+
 // --- internal helpers ---
 
 type parseConfigHost struct {
