@@ -290,6 +290,8 @@ const (
 	KindFunctionExpression       = Kind(ast.KindFunctionExpression)
 	KindMethodDeclaration        = Kind(ast.KindMethodDeclaration)
 	KindShorthandPropertyAssignment = Kind(ast.KindShorthandPropertyAssignment)
+	KindEnumDeclaration             = Kind(ast.KindEnumDeclaration)
+	KindEnumMember                  = Kind(ast.KindEnumMember)
 	KindVariableDeclaration      = Kind(ast.KindVariableDeclaration)
 	KindStringLiteral            = Kind(ast.KindStringLiteral)
 	KindParenthesizedExpression  = Kind(ast.KindParenthesizedExpression)
@@ -857,6 +859,20 @@ func (n *Node) PropertyInitializer() *Node {
 		return nil
 	}
 	init := n.inner.AsPropertyAssignment().Initializer
+	if init == nil {
+		return nil
+	}
+	return &Node{inner: init}
+}
+
+// EnumMemberInitializer returns the initializer expression of an
+// EnumMember (the `'a'` in `Apple = 'a'`). Nil for members with no
+// explicit initializer or non-EnumMember nodes.
+func (n *Node) EnumMemberInitializer() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindEnumMember {
+		return nil
+	}
+	init := n.inner.AsEnumMember().Initializer
 	if init == nil {
 		return nil
 	}
