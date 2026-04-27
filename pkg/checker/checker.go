@@ -286,6 +286,11 @@ const (
 	KindPlusToken                = Kind(ast.KindPlusToken)
 	KindPlusEqualsToken          = Kind(ast.KindPlusEqualsToken)
 	KindTaggedTemplateExpression = Kind(ast.KindTaggedTemplateExpression)
+	KindNewExpression            = Kind(ast.KindNewExpression)
+	KindPrefixUnaryExpression    = Kind(ast.KindPrefixUnaryExpression)
+	KindDoStatement              = Kind(ast.KindDoStatement)
+	KindExclamationToken         = Kind(ast.KindExclamationToken)
+	KindSpreadAssignment         = Kind(ast.KindSpreadAssignment)
 	KindTrueKeyword              = Kind(ast.KindTrueKeyword)
 	KindFalseKeyword             = Kind(ast.KindFalseKeyword)
 	KindNullKeyword              = Kind(ast.KindNullKeyword)
@@ -455,6 +460,91 @@ func (n *Node) BinaryLeft() *Node {
 		return nil
 	}
 	return &Node{inner: left}
+}
+
+// IfCondition returns the condition expression of an IfStatement.
+func (n *Node) IfCondition() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindIfStatement {
+		return nil
+	}
+	expr := n.inner.AsIfStatement().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+// WhileCondition returns the condition expression of a WhileStatement
+// or DoStatement.
+func (n *Node) WhileCondition() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	switch n.inner.Kind {
+	case ast.KindWhileStatement:
+		expr := n.inner.AsWhileStatement().Expression
+		if expr == nil {
+			return nil
+		}
+		return &Node{inner: expr}
+	case ast.KindDoStatement:
+		expr := n.inner.AsDoStatement().Expression
+		if expr == nil {
+			return nil
+		}
+		return &Node{inner: expr}
+	}
+	return nil
+}
+
+// ForStatementCondition returns the condition (middle) expression of
+// a ForStatement, or nil if the for has no condition.
+func (n *Node) ForStatementCondition() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindForStatement {
+		return nil
+	}
+	expr := n.inner.AsForStatement().Condition
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+// ConditionalCondition returns the condition (test) of a
+// ConditionalExpression `cond ? then : else`.
+func (n *Node) ConditionalCondition() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindConditionalExpression {
+		return nil
+	}
+	expr := n.inner.AsConditionalExpression().Condition
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+// PrefixUnaryOperator returns the operator string of a
+// PrefixUnaryExpression (e.g. "!", "-", "+", "++"). Empty for other
+// kinds.
+func (n *Node) PrefixUnaryOperator() string {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindPrefixUnaryExpression {
+		return ""
+	}
+	switch n.inner.AsPrefixUnaryExpression().Operator {
+	case ast.KindExclamationToken:
+		return "!"
+	case ast.KindMinusToken:
+		return "-"
+	case ast.KindPlusToken:
+		return "+"
+	case ast.KindPlusPlusToken:
+		return "++"
+	case ast.KindMinusMinusToken:
+		return "--"
+	case ast.KindTildeToken:
+		return "~"
+	}
+	return ""
 }
 
 // ConditionalBranches returns the (whenTrue, whenFalse) branches of a
