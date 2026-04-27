@@ -333,6 +333,7 @@ const (
 	KindTrueKeyword              = Kind(ast.KindTrueKeyword)
 	KindFalseKeyword             = Kind(ast.KindFalseKeyword)
 	KindNullKeyword              = Kind(ast.KindNullKeyword)
+	KindRegularExpressionLiteral = Kind(ast.KindRegularExpressionLiteral)
 )
 
 // ParseFile parses a single source file from text without loading a full
