@@ -853,6 +853,33 @@ func (n *Node) PropertyInitializer() *Node {
 	return &Node{inner: init}
 }
 
+// SwitchExpression returns the discriminant expression of a
+// SwitchStatement (the `e` in `switch (e) { ... }`). Nil for non-switch
+// nodes.
+func (n *Node) SwitchExpression() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindSwitchStatement {
+		return nil
+	}
+	expr := n.inner.AsSwitchStatement().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+// CaseExpression returns the case-label expression of a CaseClause
+// (the `0` in `case 0:`). Nil for default clauses or non-case nodes.
+func (n *Node) CaseExpression() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindCaseClause {
+		return nil
+	}
+	expr := n.inner.AsCaseOrDefaultClause().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
 // YieldOperand returns the operand expression of a YieldExpression
 // (the `X` in `yield X` or `yield* X`). For `yield;` (no operand),
 // returns nil. Skips the `*` token so callers don't have to.
