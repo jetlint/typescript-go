@@ -134,6 +134,26 @@ func (p *Program) Checker() *Checker { return &Checker{inner: p.checker} }
 // linter to surface a degraded-mode signal: if the type graph is
 // unsound, lint diagnostics built on it may be wrong, and the AI
 // agent or human consumer needs to know.
+// HasStrictNullChecks reports whether the program was compiled with
+// strict null checks enabled (via `"strict": true` or
+// `"strictNullChecks": true`).
+func (p *Program) HasStrictNullChecks() bool {
+	if p == nil || p.inner == nil {
+		return false
+	}
+	opts := p.inner.Options()
+	if opts == nil {
+		return false
+	}
+	if opts.StrictNullChecks == core.TSTrue {
+		return true
+	}
+	if opts.StrictNullChecks == core.TSFalse {
+		return false
+	}
+	return opts.Strict == core.TSTrue
+}
+
 func (p *Program) HasTypeErrors() bool {
 	for _, f := range p.inner.SourceFiles() {
 		if f.IsDeclarationFile {
@@ -1085,6 +1105,31 @@ func (t *Type) IsTypeParameter() bool {
 	return t.inner.Flags()&checker.TypeFlagsTypeParameter != 0
 }
 
+// EnumName returns the enum type's name for an enum-literal type
+// (the parent enum's name) or for an enum type itself. Empty for
+// non-enum types or when the parent symbol is missing.
+func (t *Type) EnumName() string {
+	if t == nil || t.inner == nil {
+		return ""
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return ""
+	}
+	if t.inner.Flags()&checker.TypeFlagsEnum != 0 {
+		return sym.Name
+	}
+	if t.inner.Flags()&checker.TypeFlagsEnumLiteral != 0 {
+		// Enum literal: the symbol is the enum member; its parent is
+		// the enum type.
+		if sym.Parent != nil {
+			return sym.Parent.Name
+		}
+		return sym.Name
+	}
+	return ""
+}
+
 // IsEnumLike reports whether the type is an enum (or enum-literal).
 func (t *Type) IsEnumLike() bool {
 	if t == nil || t.inner == nil {
@@ -1462,6 +1507,11 @@ func (t *Type) BaseConstraint() *Type {
 	if c == nil {
 		return nil
 	}
+	// Constraint resolves to the same type — it's not a generic, just
+	// signal absence so callers don't loop.
+	if c == t.inner {
+		return nil
+	}
 	return &Type{inner: c, checker: t.checker}
 }
 
@@ -1472,6 +1522,28 @@ func (t *Type) IsTupleType() bool {
 		return false
 	}
 	return checker.IsTupleType(t.inner)
+}
+
+// IsAssignableTo reports whether this type is assignable to `target`.
+// Uses the underlying checker's structural-assignability rules.
+func (t *Type) IsAssignableTo(target *Type) bool {
+	if t == nil || target == nil || t.inner == nil || target.inner == nil {
+		return false
+	}
+	return t.checker.IsTypeAssignableTo(t.inner, target.inner)
+}
+
+// GlobalErrorType returns the global `Error` type from lib.es5.d.ts.
+// Nil when not in scope (extremely unusual).
+func (c *Checker) GlobalErrorType() *Type {
+	if c == nil || c.inner == nil {
+		return nil
+	}
+	t := c.inner.GetGlobalType("Error", 0)
+	if t == nil {
+		return nil
+	}
+	return &Type{inner: t, checker: c.inner}
 }
 
 // HasNumericIndex reports whether the type has a numeric index
