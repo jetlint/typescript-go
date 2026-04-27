@@ -178,6 +178,12 @@ func IsTupleType(t *Type) bool {
 	return isTupleType(t)
 }
 
+// GetGlobalType resolves a global type by name. Returns nil when no
+// such global is in scope.
+func (c *Checker) GetGlobalType(name string, arity int) *Type {
+	return c.getGlobalType(name, arity, false /*reportErrors*/)
+}
+
 // HasNumericIndexSignature reports whether the type has a numeric
 // index signature (`{ [k: number]: V }`). Useful for detecting
 // array-like values (HTMLCollection, NodeList, IArguments) that
