@@ -853,6 +853,21 @@ func (n *Node) PropertyInitializer() *Node {
 	return &Node{inner: init}
 }
 
+// FunctionBody returns the body of a function-like node, or nil for
+// non-function nodes or function declarations without a body. For
+// ArrowFunctions with an expression body, returns the expression node;
+// for block-body functions, returns the BlockStatement node.
+func (n *Node) FunctionBody() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	body := n.inner.BodyData()
+	if body == nil || body.Body == nil {
+		return nil
+	}
+	return &Node{inner: body.Body}
+}
+
 // VariableDeclarationType returns the explicit type annotation of a
 // VariableDeclaration (the `() => void` in `const f: () => void = ...`),
 // or nil for non-VariableDeclaration nodes or untyped declarations.
@@ -1787,6 +1802,16 @@ func (t *Type) IsArrayLikeType() bool {
 // for non-generic types.
 func (t *Type) TypeArguments() []*Type {
 	if t == nil || t.inner == nil {
+		return nil
+	}
+	// GetTypeArguments asserts the type is a TypeReference. Other type
+	// shapes (intrinsic types, type parameters, anonymous object types
+	// without resolution) panic if asked for arguments. Filter so
+	// callers can ask freely.
+	if t.inner.Flags()&checker.TypeFlagsObject == 0 {
+		return nil
+	}
+	if t.inner.AsTypeReference() == nil {
 		return nil
 	}
 	args := t.checker.GetTypeArguments(t.inner)
