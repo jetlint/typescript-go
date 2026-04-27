@@ -178,6 +178,18 @@ func IsTupleType(t *Type) bool {
 	return isTupleType(t)
 }
 
+// AliasSymbol returns the symbol of the type alias that produced this
+// type, or nil if the type was not produced via a type alias. For
+// example, `type Foo = Promise<X> & {hey?: string}` declares an alias
+// `Foo`; types instantiated through that alias retain Foo as their
+// alias symbol so callers can match by user-facing name.
+func (t *Type) AliasSymbol() *ast.Symbol {
+	if t == nil || t.alias == nil {
+		return nil
+	}
+	return t.alias.symbol
+}
+
 func (c *Checker) GetReturnTypeOfSignature(sig *Signature) *Type {
 	return c.getReturnTypeOfSignature(sig)
 }
