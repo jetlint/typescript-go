@@ -34,7 +34,22 @@ type Program struct {
 // LoadProgram constructs a Program from a tsconfig.json on disk. Source
 // files are parsed eagerly; the type checker is constructed eagerly so
 // the first lint pass does not pay the construction cost.
-func LoadProgram(tsconfigPath string) (*Program, error) {
+//
+// Panics from the underlying tsgo compiler (currently common for some
+// edge-case tsconfig shapes — project references being the headline
+// example) are recovered into a structured error so the caller can
+// surface a clean diagnostic instead of a stack trace.
+func LoadProgram(tsconfigPath string) (prog *Program, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			prog = nil
+			err = fmt.Errorf("typescript-go panicked while loading %s: %v (this is usually an unsupported tsconfig shape such as project references; consider pointing at a child tsconfig.app.json instead of a project-references root)", tsconfigPath, r)
+		}
+	}()
+	return loadProgramImpl(tsconfigPath)
+}
+
+func loadProgramImpl(tsconfigPath string) (*Program, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("getcwd: %w", err)
