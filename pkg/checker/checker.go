@@ -283,6 +283,9 @@ const (
 	KindAmpersandAmpersandToken  = Kind(ast.KindAmpersandAmpersandToken)
 	KindQuestionQuestionToken    = Kind(ast.KindQuestionQuestionToken)
 	KindSpreadElement            = Kind(ast.KindSpreadElement)
+	KindPlusToken                = Kind(ast.KindPlusToken)
+	KindPlusEqualsToken          = Kind(ast.KindPlusEqualsToken)
+	KindTaggedTemplateExpression = Kind(ast.KindTaggedTemplateExpression)
 	KindTrueKeyword              = Kind(ast.KindTrueKeyword)
 	KindFalseKeyword             = Kind(ast.KindFalseKeyword)
 	KindNullKeyword              = Kind(ast.KindNullKeyword)
@@ -594,6 +597,14 @@ func (t *Type) IsBooleanLike() bool {
 	return t.inner.Flags()&checker.TypeFlagsBooleanLike != 0
 }
 
+// IsNever reports whether the type is `never` (the empty bottom type).
+func (t *Type) IsNever() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsNever != 0
+}
+
 // IsStringLike reports whether the type is a string-shaped type.
 func (t *Type) IsStringLike() bool {
 	if t == nil || t.inner == nil {
@@ -871,6 +882,74 @@ func (t *Type) IntersectionMembers() []*Type {
 	return t.unionOrIntersectionMembers()
 }
 
+// BaseTypeNames returns the symbol names of every base type the type
+// inherits from, walking class/interface heritage clauses. Empty for
+// types without inheritance information. Used by allow-list checks
+// that want to match by ancestor name (e.g. "any subtype of Error").
+func (t *Type) BaseTypeNames() []string {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return nil
+	}
+	out := []string{}
+	seen := map[string]struct{}{}
+	var walk func(s *ast.Symbol)
+	walk = func(s *ast.Symbol) {
+		if s == nil {
+			return
+		}
+		for _, decl := range s.Declarations {
+			if !ast.IsClassDeclaration(decl) && !ast.IsClassExpression(decl) &&
+				!ast.IsInterfaceDeclaration(decl) {
+				continue
+			}
+			var clauses *ast.NodeList
+			switch {
+			case ast.IsInterfaceDeclaration(decl):
+				clauses = decl.AsInterfaceDeclaration().HeritageClauses
+			default:
+				clauses = decl.ClassLikeData().HeritageClauses
+			}
+			if clauses == nil {
+				continue
+			}
+			for _, clause := range clauses.Nodes {
+				if clause.Kind != ast.KindHeritageClause {
+					continue
+				}
+				h := clause.AsHeritageClause()
+				if h.Token != ast.KindExtendsKeyword && h.Token != ast.KindImplementsKeyword {
+					continue
+				}
+				if h.Types == nil {
+					continue
+				}
+				for _, typeNode := range h.Types.Nodes {
+					bt := t.checker.GetTypeFromTypeNode(typeNode)
+					if bt == nil || bt.Symbol() == nil {
+						continue
+					}
+					name := bt.Symbol().Name
+					if name == "" {
+						continue
+					}
+					if _, dup := seen[name]; dup {
+						continue
+					}
+					seen[name] = struct{}{}
+					out = append(out, name)
+					walk(bt.Symbol())
+				}
+			}
+		}
+	}
+	walk(sym)
+	return out
+}
+
 // BaseConstraint returns the base constraint of a generic type
 // parameter (the `T` in `<T extends X>` resolves to `X`). Nil for
 // non-generic types or types without a constraint.
@@ -946,58 +1025,108 @@ func (t *Type) HasOwnToString() bool {
 	if t.inner.Flags()&checker.TypeFlagsPrimitive != 0 {
 		return true
 	}
-	props := t.checker.GetApparentProperties(t.inner)
-	for _, p := range props {
-		if p.Name != "toString" {
-			continue
+	// Well-known JS built-ins whose toString is defined in the lib but
+	// whose declaration tsgo's checker reports as living on Object —
+	// kept as an explicit list because the type-checker view doesn't
+	// resolve their lib.es5.d.ts override consistently.
+	switch t.SymbolName() {
+	case "RegExp", "Date", "Symbol", "Map", "Set", "WeakMap", "WeakSet",
+		"Error", "TypeError", "RangeError", "SyntaxError", "ReferenceError",
+		"URL", "URLSearchParams", "ArrayBuffer", "SharedArrayBuffer",
+		"Int8Array", "Uint8Array", "Uint8ClampedArray",
+		"Int16Array", "Uint16Array", "Int32Array", "Uint32Array",
+		"Float32Array", "Float64Array", "BigInt64Array", "BigUint64Array",
+		"BigInt", "Promise":
+		return true
+	}
+	if sym := t.checker.GetPropertyOfType(t.inner, "toString"); sym != nil {
+		if symbolDeclaresToStringOutsideObject(sym) {
+			return true
 		}
-		// A symbol whose declarations all live in the default lib (the
-		// platform's Object.prototype.toString) is the unhelpful one. Any
-		// other declaration site means the user (or a library) supplied
-		// their own toString.
-		for _, decl := range p.Declarations {
-			sf := ast.GetSourceFileOfNode(decl)
-			if sf == nil {
-				continue
-			}
-			if !sf.IsDeclarationFile {
-				return true
-			}
-			// Heuristic: declarations in user code (non-declaration files)
-			// always count; declarations in lib.*.d.ts do not. This is
-			// imperfect for user-supplied .d.ts files that augment Object,
-			// but matches the typescript-eslint rule's behavior.
-			name := sf.FileName()
-			if !isLikelyDefaultLib(name) {
-				return true
-			}
+	}
+	if sym := t.checker.GetPropertyOfType(t.inner, "toLocaleString"); sym != nil {
+		if symbolDeclaresToStringOutsideObject(sym) {
+			return true
 		}
-		return false
+	}
+	if sym := t.checker.GetPropertyOfType(t.inner, "valueOf"); sym != nil {
+		if symbolDeclaresToStringOutsideObject(sym) {
+			return true
+		}
+	}
+	// A custom Symbol.toPrimitive method also produces meaningful
+	// string conversion. The property name in the symbol table is
+	// "__@toPrimitive@..." (the well-known symbol gets a synthetic
+	// name); look it up by walking apparent properties.
+	for _, p := range t.checker.GetApparentProperties(t.inner) {
+		if len(p.Name) > 13 && p.Name[:13] == "__@toPrimitive" {
+			return true
+		}
 	}
 	return false
 }
 
-func isLikelyDefaultLib(path string) bool {
-	// The bundled TypeScript libs all have filenames matching lib.*.d.ts.
-	// User .d.ts files typically don't.
-	const prefix = "lib."
-	const suffix = ".d.ts"
-	base := path
-	if i := lastIndex(base, '/'); i >= 0 {
-		base = base[i+1:]
+// debugToStringDeclarations returns a description of where the type's
+// toString symbol is declared. Used by external tooling for diagnosing
+// the no-base-to-string rule's behavior.
+func (t *Type) DebugToStringDeclarations() string {
+	if t == nil || t.inner == nil {
+		return "<nil type>"
 	}
-	return len(base) > len(prefix)+len(suffix) &&
-		base[:len(prefix)] == prefix &&
-		base[len(base)-len(suffix):] == suffix
+	sym := t.checker.GetPropertyOfType(t.inner, "toString")
+	if sym == nil {
+		return "<no toString symbol>"
+	}
+	out := fmt.Sprintf("symbol %q parent=", sym.Name)
+	if sym.Parent != nil {
+		out += fmt.Sprintf("%q", sym.Parent.Name)
+	} else {
+		out += "<nil>"
+	}
+	out += fmt.Sprintf(" decls=%d", len(sym.Declarations))
+	for _, d := range sym.Declarations {
+		out += fmt.Sprintf(" container=%q", containingInterfaceOrClassName(d))
+	}
+	return out
 }
 
-func lastIndex(s string, c byte) int {
-	for i := len(s) - 1; i >= 0; i-- {
-		if s[i] == c {
-			return i
+// symbolDeclaresToStringOutsideObject walks each declaration of the
+// symbol and checks the containing interface/class declaration name.
+// If any declaration lives in something other than the global Object
+// interface, we treat the type as having a meaningful toString.
+func symbolDeclaresToStringOutsideObject(sym *ast.Symbol) bool {
+	for _, decl := range sym.Declarations {
+		if container := containingInterfaceOrClassName(decl); container != "" && container != "Object" {
+			return true
 		}
 	}
-	return -1
+	// Some declarations sit directly on a TypeLiteral/ObjectLiteral with
+	// no named interface — treat those as meaningful (the user wrote
+	// them, so they intend their toString to mean something).
+	for _, decl := range sym.Declarations {
+		if containingInterfaceOrClassName(decl) == "" {
+			return true
+		}
+	}
+	return false
+}
+
+func containingInterfaceOrClassName(n *ast.Node) string {
+	for cur := n; cur != nil; cur = cur.Parent {
+		switch cur.Kind {
+		case ast.KindInterfaceDeclaration:
+			if name := cur.AsInterfaceDeclaration().Name(); name != nil {
+				return name.Text()
+			}
+			return ""
+		case ast.KindClassDeclaration:
+			if name := cur.AsClassDeclaration().Name(); name != nil {
+				return name.Text()
+			}
+			return ""
+		}
+	}
+	return ""
 }
 
 // Inner returns the underlying *checker.Type. Reserved for the wrapper
