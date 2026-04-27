@@ -293,6 +293,7 @@ const (
 	KindEnumDeclaration             = Kind(ast.KindEnumDeclaration)
 	KindEnumMember                  = Kind(ast.KindEnumMember)
 	KindPropertyDeclaration         = Kind(ast.KindPropertyDeclaration)
+	KindBigIntLiteral               = Kind(ast.KindBigIntLiteral)
 	KindVariableDeclaration      = Kind(ast.KindVariableDeclaration)
 	KindStringLiteral            = Kind(ast.KindStringLiteral)
 	KindParenthesizedExpression  = Kind(ast.KindParenthesizedExpression)
