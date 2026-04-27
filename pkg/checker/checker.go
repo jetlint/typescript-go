@@ -334,6 +334,11 @@ const (
 	KindFalseKeyword             = Kind(ast.KindFalseKeyword)
 	KindNullKeyword              = Kind(ast.KindNullKeyword)
 	KindRegularExpressionLiteral = Kind(ast.KindRegularExpressionLiteral)
+	KindBlock                    = Kind(ast.KindBlock)
+	KindYieldExpression          = Kind(ast.KindYieldExpression)
+	KindExpressionWithTypeArguments = Kind(ast.KindExpressionWithTypeArguments)
+	KindHeritageClause           = Kind(ast.KindHeritageClause)
+	KindVariableDeclarationList  = Kind(ast.KindVariableDeclarationList)
 )
 
 // ParseFile parses a single source file from text without loading a full
@@ -417,6 +422,21 @@ func (c *Checker) ResolvedSignature(call *Node) *Signature {
 
 // IsAsyncFunction reports whether the node is a function-like AST node
 // declared with the `async` modifier.
+// HasAsyncModifier reports whether a function-like node has the
+// `async` keyword modifier, including async generators that
+// IsAsyncFunction excludes.
+func HasAsyncModifier(n *Node) bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	switch n.inner.Kind {
+	case ast.KindFunctionDeclaration, ast.KindFunctionExpression,
+		ast.KindArrowFunction, ast.KindMethodDeclaration:
+		return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsAsync)
+	}
+	return false
+}
+
 func IsAsyncFunction(n *Node) bool {
 	if n == nil || n.inner == nil {
 		return false
@@ -539,6 +559,89 @@ func (n *Node) WhileCondition() *Node {
 		return &Node{inner: expr}
 	}
 	return nil
+}
+
+// DeclaredTypeOfIdentifier returns the type of the identifier as
+// declared at its declaration site (e.g. for a parameter
+// `source: AsyncIterable<X>`, returns the AsyncIterable<X> type even
+// if the identifier's apparent type at the use site has narrowed to
+// `any`). Nil for unresolved or undeclared identifiers.
+func (n *Node) DeclaredTypeOfIdentifier(c *Checker) *Type {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return nil
+	}
+	if n.inner.Kind != ast.KindIdentifier {
+		return nil
+	}
+	sym := c.inner.GetSymbolAtLocation(n.inner)
+	if sym == nil {
+		return nil
+	}
+	for _, decl := range sym.Declarations {
+		var typeNode *ast.Node
+		switch decl.Kind {
+		case ast.KindParameter:
+			typeNode = decl.AsParameterDeclaration().Type
+		case ast.KindVariableDeclaration:
+			typeNode = decl.AsVariableDeclaration().Type
+		case ast.KindPropertySignature:
+			typeNode = decl.AsPropertySignatureDeclaration().Type
+		case ast.KindPropertyDeclaration:
+			typeNode = decl.AsPropertyDeclaration().Type
+		}
+		if typeNode == nil {
+			continue
+		}
+		t := c.inner.GetTypeFromTypeNode(typeNode)
+		if t != nil {
+			return &Type{inner: t, checker: c.inner}
+		}
+	}
+	return nil
+}
+
+// ElementAccessReceiver and ElementAccessIndex return the two
+// expressions of an ElementAccessExpression (`obj[idx]`). Both nil
+// for non-element-access nodes.
+func (n *Node) ElementAccessReceiver() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindElementAccessExpression {
+		return nil
+	}
+	expr := n.inner.AsElementAccessExpression().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+func (n *Node) ElementAccessIndex() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindElementAccessExpression {
+		return nil
+	}
+	idx := n.inner.AsElementAccessExpression().ArgumentExpression
+	if idx == nil {
+		return nil
+	}
+	return &Node{inner: idx}
+}
+
+// IsYieldDelegate reports whether a YieldExpression is `yield*` (a
+// generator-delegate yield).
+func (n *Node) IsYieldDelegate() bool {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindYieldExpression {
+		return false
+	}
+	return n.inner.AsYieldExpression().AsteriskToken != nil
+}
+
+// HasAwaitModifier reports whether a ForOfStatement has the `await`
+// keyword modifier (i.e. is `for await (... of ...)`). False for other
+// kinds.
+func (n *Node) HasAwaitModifier() bool {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindForOfStatement {
+		return false
+	}
+	return n.inner.AsForInOrOfStatement().AwaitModifier != nil
 }
 
 // ForInOrOfExpression returns the iteration expression of a
