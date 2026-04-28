@@ -308,6 +308,8 @@ const (
 	KindCatchClause                 = Kind(ast.KindCatchClause)
 	KindModuleDeclaration           = Kind(ast.KindModuleDeclaration)
 	KindQualifiedName               = Kind(ast.KindQualifiedName)
+	KindConstructor                 = Kind(ast.KindConstructor)
+	KindPostfixUnaryExpression      = Kind(ast.KindPostfixUnaryExpression)
 	KindBarBarEqualsToken           = Kind(ast.KindBarBarEqualsToken)
 	KindAmpersandAmpersandEqualsToken = Kind(ast.KindAmpersandAmpersandEqualsToken)
 	KindQuestionQuestionEqualsToken = Kind(ast.KindQuestionQuestionEqualsToken)
@@ -492,6 +494,30 @@ func (n *Node) HasAbstractModifier() bool {
 		return false
 	}
 	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsAbstract)
+}
+
+// HasPrivateModifier reports whether n has the `private` keyword.
+func (n *Node) HasPrivateModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsPrivate)
+}
+
+// HasReadonlyModifier reports whether n has the `readonly` keyword.
+func (n *Node) HasReadonlyModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsReadonly)
+}
+
+// HasStaticModifier reports whether n has the `static` keyword.
+func (n *Node) HasStaticModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsStatic)
 }
 
 func IsAsyncFunction(n *Node) bool {
