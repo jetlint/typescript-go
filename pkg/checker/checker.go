@@ -309,6 +309,7 @@ const (
 	KindModuleDeclaration           = Kind(ast.KindModuleDeclaration)
 	KindQualifiedName               = Kind(ast.KindQualifiedName)
 	KindConstructor                 = Kind(ast.KindConstructor)
+	KindTypeReference               = Kind(ast.KindTypeReference)
 	KindPostfixUnaryExpression      = Kind(ast.KindPostfixUnaryExpression)
 	KindBarBarEqualsToken           = Kind(ast.KindBarBarEqualsToken)
 	KindAmpersandAmpersandEqualsToken = Kind(ast.KindAmpersandAmpersandEqualsToken)
