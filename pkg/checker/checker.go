@@ -1989,9 +1989,10 @@ func (t *Type) isPromiseDeep(seen map[*checker.Type]struct{}) bool {
 	// GetBaseTypes is only safe when the type's data is an
 	// InterfaceType (declared classes/interfaces, not generic
 	// instantiations or anonymous types). For everything else upstream
-	// panics. We restrict to symbols declared as a class — the case
-	// we care about is `class MyPromise extends Promise<T>`.
-	if sym == nil || sym.Flags&ast.SymbolFlagsClass == 0 {
+	// panics. Restrict to declared classes/interfaces — the cases we
+	// care about are `class MyPromise extends Promise<T>` and
+	// `interface Alias<T> extends Promise<X>`.
+	if sym == nil || sym.Flags&(ast.SymbolFlagsClass|ast.SymbolFlagsInterface) == 0 {
 		return false
 	}
 	bases := safeGetBaseTypes(t.checker, t.inner)
@@ -2023,10 +2024,15 @@ func baseTypesFromClassDeclarations(c *checker.Checker, sym *ast.Symbol) []*chec
 	}
 	var out []*checker.Type
 	for _, decl := range sym.Declarations {
-		if !ast.IsClassDeclaration(decl) && !ast.IsClassExpression(decl) {
+		var clauses *ast.NodeList
+		switch {
+		case ast.IsClassDeclaration(decl) || ast.IsClassExpression(decl):
+			clauses = decl.ClassLikeData().HeritageClauses
+		case ast.IsInterfaceDeclaration(decl):
+			clauses = decl.AsInterfaceDeclaration().HeritageClauses
+		default:
 			continue
 		}
-		clauses := decl.ClassLikeData().HeritageClauses
 		if clauses == nil {
 			continue
 		}
