@@ -1866,8 +1866,32 @@ func (t *Type) IsThenable() bool {
 		if propType == nil {
 			continue
 		}
-		if len(t.checker.GetCallSignatures(propType)) > 0 {
-			return true
+		// Tighten the check: the first parameter of `then` must be
+		// callable (it's the `onFulfilled` callback). A no-arg `then()`
+		// or one whose first parameter has no call signature isn't a
+		// real thenable — typescript-eslint matches this stricter view
+		// of `getAwaitedType`.
+		for _, sig := range t.checker.GetCallSignatures(propType) {
+			params := sig.Parameters()
+			if len(params) == 0 {
+				continue
+			}
+			firstT := t.checker.GetTypeOfSymbol(params[0])
+			if firstT == nil {
+				continue
+			}
+			if len(t.checker.GetCallSignatures(firstT)) > 0 {
+				return true
+			}
+			// Allow `then(onFulfilled?: ((value: T) => unknown) | undefined)`:
+			// the parameter type itself is a union with a callable member.
+			if firstT.Flags()&checker.TypeFlagsUnion != 0 {
+				for _, m := range firstT.Types() {
+					if len(t.checker.GetCallSignatures(m)) > 0 {
+						return true
+					}
+				}
+			}
 		}
 	}
 	return false
@@ -2409,6 +2433,27 @@ func (s *Signature) DeclarationIsUserSource() bool {
 type Signature struct {
 	inner   *checker.Signature
 	checker *checker.Checker
+}
+
+// ParameterTypes returns the parameter types of the signature in
+// declaration order. Used by rules that need to check the shape of a
+// callable beyond its return type (e.g. a `then` method's first
+// parameter must itself be callable).
+func (s *Signature) ParameterTypes() []*Type {
+	if s == nil || s.inner == nil {
+		return nil
+	}
+	params := s.inner.Parameters()
+	out := make([]*Type, 0, len(params))
+	for _, p := range params {
+		t := s.checker.GetTypeOfSymbol(p)
+		if t == nil {
+			out = append(out, nil)
+			continue
+		}
+		out = append(out, &Type{inner: t, checker: s.checker})
+	}
+	return out
 }
 
 // ReturnType returns the signature's return type.
