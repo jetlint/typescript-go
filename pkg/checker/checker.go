@@ -284,6 +284,8 @@ const (
 	KindTemplateTail             = Kind(ast.KindTemplateTail)
 	KindLiteralType              = Kind(ast.KindLiteralType)
 	KindVariableStatement        = Kind(ast.KindVariableStatement)
+	KindTypeAliasDeclaration     = Kind(ast.KindTypeAliasDeclaration)
+	KindModuleBlock              = Kind(ast.KindModuleBlock)
 	KindIfStatement              = Kind(ast.KindIfStatement)
 	KindConditionalExpression    = Kind(ast.KindConditionalExpression)
 	KindWhileStatement           = Kind(ast.KindWhileStatement)
