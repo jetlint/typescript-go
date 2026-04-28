@@ -303,6 +303,7 @@ const (
 	KindParenthesizedType           = Kind(ast.KindParenthesizedType)
 	KindThisKeyword                 = Kind(ast.KindThisKeyword)
 	KindBindingElement              = Kind(ast.KindBindingElement)
+	KindDefaultClause               = Kind(ast.KindDefaultClause)
 	KindBarBarEqualsToken           = Kind(ast.KindBarBarEqualsToken)
 	KindAmpersandAmpersandEqualsToken = Kind(ast.KindAmpersandAmpersandEqualsToken)
 	KindQuestionQuestionEqualsToken = Kind(ast.KindQuestionQuestionEqualsToken)
