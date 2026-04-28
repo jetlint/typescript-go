@@ -2058,6 +2058,20 @@ func safeGetBaseTypes(c *checker.Checker, t *checker.Type) (out []*checker.Type)
 	return c.GetBaseTypes(t)
 }
 
+// Symbol returns the symbol the type refers to, or nil. Useful for
+// rules that need to inspect the declaring node — e.g. checking
+// whether a type is a class instance via its declaration's kind.
+func (t *Type) Symbol() *Symbol {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return nil
+	}
+	return &Symbol{inner: sym, checker: t.checker}
+}
+
 // SymbolName returns the name of the symbol the type refers to (e.g.
 // "Promise" for `Promise<T>`, "Array" for `Array<T>`, "MyClass" for a
 // class instance type). Empty for anonymous or symbol-less types.
