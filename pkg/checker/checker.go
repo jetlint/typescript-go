@@ -283,6 +283,7 @@ const (
 	KindTemplateMiddle           = Kind(ast.KindTemplateMiddle)
 	KindTemplateTail             = Kind(ast.KindTemplateTail)
 	KindLiteralType              = Kind(ast.KindLiteralType)
+	KindVariableStatement        = Kind(ast.KindVariableStatement)
 	KindIfStatement              = Kind(ast.KindIfStatement)
 	KindConditionalExpression    = Kind(ast.KindConditionalExpression)
 	KindWhileStatement           = Kind(ast.KindWhileStatement)
