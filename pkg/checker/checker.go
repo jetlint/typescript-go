@@ -568,13 +568,14 @@ func IsAsyncFunction(n *Node) bool {
 	return ast.IsAsyncFunction(n.inner)
 }
 
-// CallArguments returns the argument expressions of a CallExpression,
-// in source order. Returns nil for non-call nodes.
+// CallArguments returns the argument expressions of a CallExpression
+// or NewExpression, in source order. Returns nil for nodes of other
+// kinds.
 func (n *Node) CallArguments() []*Node {
 	if n == nil || n.inner == nil {
 		return nil
 	}
-	if !ast.IsCallExpression(n.inner) {
+	if !ast.IsCallExpression(n.inner) && !ast.IsNewExpression(n.inner) {
 		return nil
 	}
 	args := n.inner.Arguments()
