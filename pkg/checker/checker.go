@@ -1409,6 +1409,35 @@ func (t *Type) PropertySymbol(name string) *Symbol {
 	return &Symbol{inner: sym, checker: t.checker}
 }
 
+// HasNonPlainStringIndexSignature reports whether t has an index
+// signature whose key type is more specific than plain `string` —
+// e.g. a template-literal type like `\`key_${string}\`` or a
+// transformer type like `Lowercase<string>`. Such signatures express
+// a pattern; bracket access by a concrete string key is the only
+// runtime form that can match them.
+func (t *Type) HasNonPlainStringIndexSignature() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	for _, info := range t.checker.GetIndexInfosOfType(t.inner) {
+		kt := info.KeyType()
+		if kt == nil {
+			continue
+		}
+		flags := kt.Flags()
+		if flags&checker.TypeFlagsStringLike == 0 {
+			continue
+		}
+		// Plain `string` matches `TypeFlagsString` exactly. Anything
+		// narrower — string-literal, template-literal, intrinsic
+		// string-mapped types — fails this exact-match check.
+		if flags&checker.TypeFlagsString == 0 || flags&^checker.TypeFlagsString != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 // HasIndexSignature reports whether t has an index signature whose
 // key flags match the requested kind (`string`, `number`, or empty
 // for any). Used by rules that allow bracket-notation access on
