@@ -301,6 +301,7 @@ const (
 	KindMethodSignature             = Kind(ast.KindMethodSignature)
 	KindConstructorType             = Kind(ast.KindConstructorType)
 	KindParenthesizedType           = Kind(ast.KindParenthesizedType)
+	KindThisKeyword                 = Kind(ast.KindThisKeyword)
 	KindVariableDeclaration      = Kind(ast.KindVariableDeclaration)
 	KindStringLiteral            = Kind(ast.KindStringLiteral)
 	KindParenthesizedExpression  = Kind(ast.KindParenthesizedExpression)
