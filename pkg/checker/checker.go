@@ -304,6 +304,8 @@ const (
 	KindThisKeyword                 = Kind(ast.KindThisKeyword)
 	KindBindingElement              = Kind(ast.KindBindingElement)
 	KindDefaultClause               = Kind(ast.KindDefaultClause)
+	KindTryStatement                = Kind(ast.KindTryStatement)
+	KindCatchClause                 = Kind(ast.KindCatchClause)
 	KindBarBarEqualsToken           = Kind(ast.KindBarBarEqualsToken)
 	KindAmpersandAmpersandEqualsToken = Kind(ast.KindAmpersandAmpersandEqualsToken)
 	KindQuestionQuestionEqualsToken = Kind(ast.KindQuestionQuestionEqualsToken)
@@ -755,6 +757,16 @@ func (n *Node) BindingElementInitializer() *Node {
 		return nil
 	}
 	return &Node{inner: init}
+}
+
+// IsOptionalChain reports whether n is part of an optional-chain
+// expression (`x?.y`, `x?.[idx]`, `x?.()`, or any link inside a chain
+// rooted at one of those).
+func (n *Node) IsOptionalChain() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.IsOptionalChain(n.inner)
 }
 
 // AsExpressionTarget returns the type-annotation node of an
