@@ -302,6 +302,7 @@ const (
 	KindConstructorType             = Kind(ast.KindConstructorType)
 	KindParenthesizedType           = Kind(ast.KindParenthesizedType)
 	KindThisKeyword                 = Kind(ast.KindThisKeyword)
+	KindIndexSignature              = Kind(ast.KindIndexSignature)
 	KindBindingElement              = Kind(ast.KindBindingElement)
 	KindDefaultClause               = Kind(ast.KindDefaultClause)
 	KindTryStatement                = Kind(ast.KindTryStatement)
@@ -503,6 +504,14 @@ func (n *Node) HasPrivateModifier() bool {
 		return false
 	}
 	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsPrivate)
+}
+
+// HasProtectedModifier reports whether n has the `protected` keyword.
+func (n *Node) HasProtectedModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsProtected)
 }
 
 // HasReadonlyModifier reports whether n has the `readonly` keyword.
@@ -1333,6 +1342,50 @@ func (t *Type) PropertyType(name string) *Type {
 		return &Type{inner: pt, checker: t.checker}
 	}
 	return nil
+}
+
+// PropertySymbol returns the symbol of the named property on t, or
+// nil if the type doesn't carry that property.
+func (t *Type) PropertySymbol(name string) *Symbol {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sym := t.checker.GetPropertyOfType(t.inner, name)
+	if sym == nil {
+		return nil
+	}
+	return &Symbol{inner: sym, checker: t.checker}
+}
+
+// HasIndexSignature reports whether t has an index signature whose
+// key flags match the requested kind (`string`, `number`, or empty
+// for any). Used by rules that allow bracket-notation access on
+// indexable types.
+func (t *Type) HasIndexSignature(kind string) bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	for _, info := range t.checker.GetIndexInfosOfType(t.inner) {
+		kt := info.KeyType()
+		if kt == nil {
+			continue
+		}
+		if kind == "" {
+			return true
+		}
+		flags := kt.Flags()
+		switch kind {
+		case "string":
+			if flags&checker.TypeFlagsStringLike != 0 {
+				return true
+			}
+		case "number":
+			if flags&checker.TypeFlagsNumberLike != 0 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // PropertyNames returns the names of every apparent property on the
