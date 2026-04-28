@@ -506,6 +506,20 @@ func (n *Node) HasPrivateModifier() bool {
 	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsPrivate)
 }
 
+// IsRestParameter reports whether n is a parameter declared with a
+// leading `...` token (and is therefore typed as the rest tuple/array
+// rather than a single argument value).
+func (n *Node) IsRestParameter() bool {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindParameter {
+		return false
+	}
+	pd := n.inner.AsParameterDeclaration()
+	if pd == nil {
+		return false
+	}
+	return pd.DotDotDotToken != nil
+}
+
 // HasProtectedModifier reports whether n has the `protected` keyword.
 func (n *Node) HasProtectedModifier() bool {
 	if n == nil || n.inner == nil {
