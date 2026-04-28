@@ -303,6 +303,7 @@ const (
 	KindParenthesizedType           = Kind(ast.KindParenthesizedType)
 	KindThisKeyword                 = Kind(ast.KindThisKeyword)
 	KindIndexSignature              = Kind(ast.KindIndexSignature)
+	KindConstructSignature          = Kind(ast.KindConstructSignature)
 	KindBindingElement              = Kind(ast.KindBindingElement)
 	KindDefaultClause               = Kind(ast.KindDefaultClause)
 	KindTryStatement                = Kind(ast.KindTryStatement)
