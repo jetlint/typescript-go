@@ -737,6 +737,32 @@ func (n *Node) ForInOrOfExpression() *Node {
 	return nil
 }
 
+// AsExpressionTarget returns the type-annotation node of an
+// AsExpression (the `T` in `expr as T`). Nil for non-as nodes.
+func (n *Node) AsExpressionTarget() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindAsExpression {
+		return nil
+	}
+	t := n.inner.AsAsExpression().Type
+	if t == nil {
+		return nil
+	}
+	return &Node{inner: t}
+}
+
+// AsExpressionSource returns the value expression of an AsExpression
+// (the `expr` in `expr as T`). Nil for non-as nodes.
+func (n *Node) AsExpressionSource() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindAsExpression {
+		return nil
+	}
+	expr := n.inner.AsAsExpression().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
 // ForOfIterable returns the iterable expression of a ForOfStatement
 // (the `xs` in `for (const x of xs)`). Nil for non-for-of nodes.
 func (n *Node) ForOfIterable() *Node {
