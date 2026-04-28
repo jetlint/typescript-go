@@ -798,6 +798,32 @@ func (n *Node) IsOptionalChain() bool {
 	return ast.IsOptionalChain(n.inner)
 }
 
+// TypeAssertionSource returns the value expression of a
+// TypeAssertion (`<T>expr`). Nil for non-type-assertion nodes.
+func (n *Node) TypeAssertionSource() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTypeAssertionExpression {
+		return nil
+	}
+	expr := n.inner.AsTypeAssertion().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+// TypeAssertionTarget returns the type-annotation node of a
+// TypeAssertion (`<T>expr`). Nil for non-type-assertion nodes.
+func (n *Node) TypeAssertionTarget() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTypeAssertionExpression {
+		return nil
+	}
+	t := n.inner.AsTypeAssertion().Type
+	if t == nil {
+		return nil
+	}
+	return &Node{inner: t}
+}
+
 // AsExpressionTarget returns the type-annotation node of an
 // AsExpression (the `T` in `expr as T`). Nil for non-as nodes.
 func (n *Node) AsExpressionTarget() *Node {
