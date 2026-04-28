@@ -737,6 +737,19 @@ func (n *Node) ForInOrOfExpression() *Node {
 	return nil
 }
 
+// ForOfIterable returns the iterable expression of a ForOfStatement
+// (the `xs` in `for (const x of xs)`). Nil for non-for-of nodes.
+func (n *Node) ForOfIterable() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindForOfStatement {
+		return nil
+	}
+	expr := n.inner.AsForInOrOfStatement().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
 // ForStatementCondition returns the condition (middle) expression of
 // a ForStatement, or nil if the for has no condition.
 func (n *Node) ForStatementCondition() *Node {
