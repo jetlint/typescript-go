@@ -302,6 +302,7 @@ const (
 	KindConstructorType             = Kind(ast.KindConstructorType)
 	KindParenthesizedType           = Kind(ast.KindParenthesizedType)
 	KindThisKeyword                 = Kind(ast.KindThisKeyword)
+	KindBindingElement              = Kind(ast.KindBindingElement)
 	KindVariableDeclaration      = Kind(ast.KindVariableDeclaration)
 	KindStringLiteral            = Kind(ast.KindStringLiteral)
 	KindParenthesizedExpression  = Kind(ast.KindParenthesizedExpression)
@@ -736,6 +737,20 @@ func (n *Node) ForInOrOfExpression() *Node {
 		return &Node{inner: expr}
 	}
 	return nil
+}
+
+// BindingElementInitializer returns the default-value expression of a
+// BindingElement (the `''` in `{ foo = '' }`). Nil for elements with
+// no default and non-BindingElement nodes.
+func (n *Node) BindingElementInitializer() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindBindingElement {
+		return nil
+	}
+	init := n.inner.AsBindingElement().Initializer
+	if init == nil {
+		return nil
+	}
+	return &Node{inner: init}
 }
 
 // AsExpressionTarget returns the type-annotation node of an
