@@ -838,6 +838,16 @@ func (n *Node) IsOptionalChain() bool {
 	return ast.IsOptionalChain(n.inner)
 }
 
+// IsOptionalChainRoot reports whether n is the root link of an
+// optional chain — the specific node carrying the `?.` token, as
+// opposed to any other link in the chain.
+func (n *Node) IsOptionalChainRoot() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.IsOptionalChainRoot(n.inner)
+}
+
 // TypeAssertionSource returns the value expression of a
 // TypeAssertion (`<T>expr`). Nil for non-type-assertion nodes.
 func (n *Node) TypeAssertionSource() *Node {
