@@ -306,6 +306,8 @@ const (
 	KindDefaultClause               = Kind(ast.KindDefaultClause)
 	KindTryStatement                = Kind(ast.KindTryStatement)
 	KindCatchClause                 = Kind(ast.KindCatchClause)
+	KindModuleDeclaration           = Kind(ast.KindModuleDeclaration)
+	KindQualifiedName               = Kind(ast.KindQualifiedName)
 	KindBarBarEqualsToken           = Kind(ast.KindBarBarEqualsToken)
 	KindAmpersandAmpersandEqualsToken = Kind(ast.KindAmpersandAmpersandEqualsToken)
 	KindQuestionQuestionEqualsToken = Kind(ast.KindQuestionQuestionEqualsToken)
