@@ -288,6 +288,8 @@ const (
 	KindJsxAttribute             = Kind(ast.KindJsxAttribute)
 	KindJsxAttributes            = Kind(ast.KindJsxAttributes)
 	KindJsxExpression            = Kind(ast.KindJsxExpression)
+	KindArrayBindingPattern      = Kind(ast.KindArrayBindingPattern)
+	KindObjectBindingPattern     = Kind(ast.KindObjectBindingPattern)
 	KindLiteralType              = Kind(ast.KindLiteralType)
 	KindVariableStatement        = Kind(ast.KindVariableStatement)
 	KindTypeAliasDeclaration     = Kind(ast.KindTypeAliasDeclaration)
