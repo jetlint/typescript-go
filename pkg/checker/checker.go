@@ -304,6 +304,8 @@ const (
 	KindThisKeyword                 = Kind(ast.KindThisKeyword)
 	KindIndexSignature              = Kind(ast.KindIndexSignature)
 	KindConstructSignature          = Kind(ast.KindConstructSignature)
+	KindAnyKeyword                  = Kind(ast.KindAnyKeyword)
+	KindUnknownKeyword              = Kind(ast.KindUnknownKeyword)
 	KindBindingElement              = Kind(ast.KindBindingElement)
 	KindDefaultClause               = Kind(ast.KindDefaultClause)
 	KindTryStatement                = Kind(ast.KindTryStatement)
@@ -505,6 +507,20 @@ func (n *Node) HasPrivateModifier() bool {
 		return false
 	}
 	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsPrivate)
+}
+
+// IsOptionalParameter reports whether n is a parameter declared with
+// a trailing `?` token (e.g. `(x?: T) => void`). When true, the
+// parameter's runtime type implicitly includes `undefined`.
+func (n *Node) IsOptionalParameter() bool {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindParameter {
+		return false
+	}
+	pd := n.inner.AsParameterDeclaration()
+	if pd == nil {
+		return false
+	}
+	return pd.QuestionToken != nil
 }
 
 // IsRestParameter reports whether n is a parameter declared with a
