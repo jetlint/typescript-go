@@ -2467,6 +2467,46 @@ func (s *Signature) ParameterTypes() []*Type {
 	return out
 }
 
+// MinArgumentCount returns the number of required parameters of the
+// signature — i.e. the count of parameters declared without `?` or
+// an initializer, before any rest parameter. This is the lower bound
+// upstream uses when checking arity compatibility between callable
+// shapes.
+func (s *Signature) MinArgumentCount() int {
+	if s == nil || s.inner == nil {
+		return 0
+	}
+	count := 0
+	for _, p := range s.inner.Parameters() {
+		if p == nil {
+			continue
+		}
+		decls := p.Declarations
+		if len(decls) == 0 {
+			count++
+			continue
+		}
+		decl := decls[0]
+		if decl == nil || !ast.IsParameterDeclaration(decl) {
+			count++
+			continue
+		}
+		pd := decl.AsParameterDeclaration()
+		if pd == nil {
+			count++
+			continue
+		}
+		if pd.DotDotDotToken != nil {
+			break
+		}
+		if pd.QuestionToken != nil || pd.Initializer != nil {
+			break
+		}
+		count++
+	}
+	return count
+}
+
 // ReturnType returns the signature's return type.
 func (s *Signature) ReturnType() *Type {
 	if s == nil || s.inner == nil {
