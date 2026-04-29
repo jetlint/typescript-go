@@ -1880,6 +1880,15 @@ func (t *Type) IsNullOrUndefined() bool {
 	return t.inner.Flags()&checker.TypeFlagsNullable != 0
 }
 
+// IsESSymbolLike reports whether the type is a `symbol` (the
+// primitive introduced in ES6) — including unique symbol literals.
+func (t *Type) IsESSymbolLike() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsESSymbolLike != 0
+}
+
 // IsNull reports whether the type is exactly `null`.
 func (t *Type) IsNull() bool {
 	if t == nil || t.inner == nil {
@@ -2684,6 +2693,35 @@ func (s *Symbol) Declarations() []*Node {
 		out = append(out, &Node{inner: d})
 	}
 	return out
+}
+
+// IsReadonly reports whether the symbol is declared `readonly` (a
+// property with the modifier, an enum member, a `const` variable, a
+// getter without a corresponding setter, or a union/intersection
+// where every constituent is readonly).
+func (s *Symbol) IsReadonly() bool {
+	if s == nil || s.inner == nil || s.checker == nil {
+		return false
+	}
+	checkFlags := s.inner.CheckFlags & ast.CheckFlagsReadonly
+	if checkFlags != 0 {
+		return true
+	}
+	flags := s.inner.Flags
+	if flags&ast.SymbolFlagsProperty != 0 {
+		for _, d := range s.inner.Declarations {
+			if ast.HasSyntacticModifier(d, ast.ModifierFlagsReadonly) {
+				return true
+			}
+		}
+	}
+	if flags&ast.SymbolFlagsAccessor != 0 && flags&ast.SymbolFlagsSetAccessor == 0 {
+		return true
+	}
+	if flags&ast.SymbolFlagsEnumMember != 0 {
+		return true
+	}
+	return false
 }
 
 // --- internal helpers ---
