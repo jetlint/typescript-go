@@ -1880,6 +1880,22 @@ func (t *Type) IsNullOrUndefined() bool {
 	return t.inner.Flags()&checker.TypeFlagsNullable != 0
 }
 
+// IsNull reports whether the type is exactly `null`.
+func (t *Type) IsNull() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsNull != 0
+}
+
+// IsUndefined reports whether the type is exactly `undefined`.
+func (t *Type) IsUndefined() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsUndefined != 0
+}
+
 // IsVoid reports whether the type is exactly the `void` type.
 func (t *Type) IsVoid() bool {
 	if t == nil || t.inner == nil {
