@@ -350,6 +350,7 @@ const (
 	KindVoidExpression           = Kind(ast.KindVoidExpression)
 	KindObjectLiteralExpression  = Kind(ast.KindObjectLiteralExpression)
 	KindArrayLiteralExpression   = Kind(ast.KindArrayLiteralExpression)
+	KindOmittedExpression        = Kind(ast.KindOmittedExpression)
 	KindPropertyAssignment       = Kind(ast.KindPropertyAssignment)
 	KindNoSubstitutionTemplateLiteral = Kind(ast.KindNoSubstitutionTemplateLiteral)
 	KindNumericLiteral           = Kind(ast.KindNumericLiteral)
@@ -2076,6 +2077,29 @@ func baseTypesFromClassDeclarations(c *checker.Checker, sym *ast.Symbol) []*chec
 				}
 			}
 		}
+	}
+	return out
+}
+
+// BaseTypes returns the declared base types of a class or interface
+// (the `extends` heritage). For generic instantiations whose
+// TypeReference lacks resolved bases, it falls back to reading the
+// declaration's heritage clauses. Empty for non-class/interface types.
+func (t *Type) BaseTypes() []*Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sym := t.inner.Symbol()
+	if sym == nil || sym.Flags&(ast.SymbolFlagsClass|ast.SymbolFlagsInterface) == 0 {
+		return nil
+	}
+	bases := safeGetBaseTypes(t.checker, t.inner)
+	if len(bases) == 0 {
+		bases = baseTypesFromClassDeclarations(t.checker, sym)
+	}
+	out := make([]*Type, 0, len(bases))
+	for _, b := range bases {
+		out = append(out, &Type{inner: b, checker: t.checker})
 	}
 	return out
 }
