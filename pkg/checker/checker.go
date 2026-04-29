@@ -1088,6 +1088,20 @@ func (n *Node) IsAwaitUsingDeclaration() bool {
 	return ast.IsVarAwaitUsing(n.inner)
 }
 
+// VariableStatementDeclarationList returns the VariableDeclarationList
+// child of a VariableStatement (`const x = 1, y = 2` → the list node).
+// Nil for other kinds of nodes.
+func (n *Node) VariableStatementDeclarationList() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindVariableStatement {
+		return nil
+	}
+	dl := n.inner.AsVariableStatement().DeclarationList
+	if dl == nil {
+		return nil
+	}
+	return &Node{inner: dl}
+}
+
 // EnumMemberInitializer returns the initializer expression of an
 // EnumMember (the `'a'` in `Apple = 'a'`). Nil for members with no
 // explicit initializer or non-EnumMember nodes.
