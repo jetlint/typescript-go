@@ -351,6 +351,7 @@ const (
 	KindObjectLiteralExpression  = Kind(ast.KindObjectLiteralExpression)
 	KindArrayLiteralExpression   = Kind(ast.KindArrayLiteralExpression)
 	KindOmittedExpression        = Kind(ast.KindOmittedExpression)
+	KindPrivateIdentifier        = Kind(ast.KindPrivateIdentifier)
 	KindPropertyAssignment       = Kind(ast.KindPropertyAssignment)
 	KindNoSubstitutionTemplateLiteral = Kind(ast.KindNoSubstitutionTemplateLiteral)
 	KindNumericLiteral           = Kind(ast.KindNumericLiteral)
@@ -534,6 +535,17 @@ func (n *Node) HasPrivateModifier() bool {
 		return false
 	}
 	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsPrivate)
+}
+
+// HasAccessorModifier reports whether n has the `accessor` keyword
+// (auto-accessor field, with implicit getter/setter pair). Such
+// fields cannot be declared `readonly` because the setter would
+// disappear silently.
+func (n *Node) HasAccessorModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsAccessor)
 }
 
 // IsOptionalParameter reports whether n is a parameter declared with
