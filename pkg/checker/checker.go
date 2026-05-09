@@ -2281,6 +2281,35 @@ func (t *Type) isPromiseDeep(seen map[*checker.Type]struct{}) bool {
 // This works for generic-class instantiations where GetBaseTypes
 // returns nothing because the underlying TypeReference has no
 // InterfaceType data.
+// heritageBaseType resolves a single heritage-clause entry to its
+// declared type. The fast path is GetTypeFromTypeNode, which already
+// returns the instantiated base for `extends Promise<any>` and the
+// like; only when that yields the error/`any` type (which happens
+// for `extends Array` without explicit type arguments) do we fall
+// back to GetSymbolAtLocation + GetDeclaredTypeOfSymbol on the
+// heritage expression to recover the symbol's declared instance
+// type.
+func heritageBaseType(c *checker.Checker, n *ast.Node) *checker.Type {
+	if n == nil {
+		return nil
+	}
+	if t := c.GetTypeFromTypeNode(n); t != nil && t.Flags()&checker.TypeFlagsAny == 0 {
+		return t
+	}
+	if ast.IsExpressionWithTypeArguments(n) {
+		expr := n.AsExpressionWithTypeArguments().Expression
+		if expr != nil {
+			sym := c.GetSymbolAtLocation(expr)
+			if sym != nil {
+				if t := c.GetDeclaredTypeOfSymbol(sym); t != nil {
+					return t
+				}
+			}
+		}
+	}
+	return c.GetTypeFromTypeNode(n)
+}
+
 func baseTypesFromClassDeclarations(c *checker.Checker, sym *ast.Symbol) []*checker.Type {
 	if sym == nil {
 		return nil
@@ -2308,8 +2337,7 @@ func baseTypesFromClassDeclarations(c *checker.Checker, sym *ast.Symbol) []*chec
 				continue
 			}
 			for _, t := range types.Nodes {
-				bt := c.GetTypeFromTypeNode(t)
-				if bt != nil {
+				if bt := heritageBaseType(c, t); bt != nil {
 					out = append(out, bt)
 				}
 			}
@@ -2334,6 +2362,28 @@ func (t *Type) BaseTypes() []*Type {
 	if len(bases) == 0 {
 		bases = baseTypesFromClassDeclarations(t.checker, sym)
 	}
+	out := make([]*Type, 0, len(bases))
+	for _, b := range bases {
+		out = append(out, &Type{inner: b, checker: t.checker})
+	}
+	return out
+}
+
+// HeritageBaseTypes returns the base types declared on the class or
+// interface declarations attached to t's symbol — that is, the
+// instance-side heritage even when t itself is the constructor side.
+// `typeof Foo` yields the same bases as `Foo` would. Used by rules
+// (unbound-method) that need to reach the instance heritage of a
+// value referenced as a constructor.
+func (t *Type) HeritageBaseTypes() []*Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return nil
+	}
+	bases := baseTypesFromClassDeclarations(t.checker, sym)
 	out := make([]*Type, 0, len(bases))
 	for _, b := range bases {
 		out = append(out, &Type{inner: b, checker: t.checker})
