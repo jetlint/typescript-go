@@ -397,6 +397,10 @@ const (
 	KindYieldExpression          = Kind(ast.KindYieldExpression)
 	KindExpressionWithTypeArguments = Kind(ast.KindExpressionWithTypeArguments)
 	KindHeritageClause           = Kind(ast.KindHeritageClause)
+	KindExtendsKeyword           = Kind(ast.KindExtendsKeyword)
+	KindImplementsKeyword        = Kind(ast.KindImplementsKeyword)
+	KindJsxOpeningElement        = Kind(ast.KindJsxOpeningElement)
+	KindJsxSelfClosingElement    = Kind(ast.KindJsxSelfClosingElement)
 	KindImportKeyword            = Kind(ast.KindImportKeyword)
 	KindGetAccessor              = Kind(ast.KindGetAccessor)
 	KindSetAccessor              = Kind(ast.KindSetAccessor)
@@ -2869,6 +2873,29 @@ func (s *Signature) SignatureDeclaration() *Node {
 		return nil
 	}
 	return &Node{inner: d}
+}
+
+// HeritageClauseToken returns the keyword Kind of a HeritageClause node
+// (KindExtendsKeyword or KindImplementsKeyword). Zero for other nodes.
+func (n *Node) HeritageClauseToken() Kind {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindHeritageClause {
+		return 0
+	}
+	return Kind(n.inner.AsHeritageClause().Token)
+}
+
+// TypeOfSymbol returns the apparent type of a symbol, useful when the
+// symbol refers to a value (e.g. `declare var Foo: { new <T>(...): any }`)
+// and the caller needs the construct/call signatures of that type.
+func (c *Checker) TypeOfSymbol(s *Symbol) *Type {
+	if c == nil || c.inner == nil || s == nil || s.inner == nil {
+		return nil
+	}
+	t := c.inner.GetTypeOfSymbol(s.inner)
+	if t == nil {
+		return nil
+	}
+	return &Type{inner: t, checker: c.inner}
 }
 
 // Identical reports whether two wrapper Type values share the same
