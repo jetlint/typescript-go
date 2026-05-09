@@ -381,6 +381,7 @@ const (
 	KindTypeAssertionExpression  = Kind(ast.KindTypeAssertionExpression)
 	KindNonNullExpression        = Kind(ast.KindNonNullExpression)
 	KindDeleteExpression         = Kind(ast.KindDeleteExpression)
+	KindTypeOfExpression         = Kind(ast.KindTypeOfExpression)
 	KindMinusToken                       = Kind(ast.KindMinusToken)
 	KindEqualsEqualsToken                = Kind(ast.KindEqualsEqualsToken)
 	KindEqualsEqualsEqualsToken          = Kind(ast.KindEqualsEqualsEqualsToken)
@@ -538,6 +539,16 @@ func HasAsyncModifier(n *Node) bool {
 		return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsAsync)
 	}
 	return false
+}
+
+// HasDeclareModifier reports whether the node was written with the
+// `declare` keyword (e.g. `declare class`, `declare const`,
+// `declare function`).
+func (n *Node) HasDeclareModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsAmbient)
 }
 
 // HasAbstractModifier reports whether a method-like has the `abstract`
@@ -2906,6 +2917,88 @@ func (s *Signature) SignatureDeclaration() *Node {
 		return nil
 	}
 	return &Node{inner: d}
+}
+
+// SymbolDeclarations returns the declaration nodes of the type's
+// declaring symbol, in source order. Empty when the type has no symbol
+// (intrinsic types, anonymous structures).
+func (t *Type) SymbolDeclarations() []*Node {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(sym.Declarations))
+	for _, d := range sym.Declarations {
+		if d == nil {
+			continue
+		}
+		out = append(out, &Node{inner: d})
+	}
+	return out
+}
+
+// IsInDeclarationFile reports whether the node lives in a .d.ts
+// declaration file (lib.*, ambient, types).
+func (n *Node) IsInDeclarationFile() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	sf := ast.GetSourceFileOfNode(n.inner)
+	return sf != nil && sf.IsDeclarationFile
+}
+
+// FunctionParameters returns the parameter declaration nodes of any
+// function-like node (function/method/arrow/getter/setter/etc.). Empty
+// for non-function nodes.
+func (n *Node) FunctionParameters() []*Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	fn := n.inner.FunctionLikeData()
+	if fn == nil || fn.Parameters == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(fn.Parameters.Nodes))
+	for _, p := range fn.Parameters.Nodes {
+		out = append(out, &Node{inner: p})
+	}
+	return out
+}
+
+// ParameterName returns the binding-name node of a parameter
+// declaration (typically an Identifier; can be a binding pattern).
+// Nil for non-parameter nodes.
+func (n *Node) ParameterName() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindParameter {
+		return nil
+	}
+	pd := n.inner.AsParameterDeclaration()
+	if pd == nil || pd.Name() == nil {
+		return nil
+	}
+	return &Node{inner: pd.Name()}
+}
+
+// IsVoidTypeNode reports whether n is a TypeNode that names `void`.
+func (n *Node) IsVoidTypeNode() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return n.inner.Kind == ast.KindVoidKeyword
+}
+
+// SymbolValueDeclaration returns the symbol's primary value
+// declaration — the declaration TypeScript treats as the canonical one
+// for runtime semantics (e.g. the function expression assigned to a
+// property field, the method body of a method declaration).
+func (s *Symbol) SymbolValueDeclaration() *Node {
+	if s == nil || s.inner == nil || s.inner.ValueDeclaration == nil {
+		return nil
+	}
+	return &Node{inner: s.inner.ValueDeclaration}
 }
 
 // IsDeprecated reports whether any declaration of the symbol — or, if
