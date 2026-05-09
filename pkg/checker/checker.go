@@ -229,6 +229,27 @@ func (n *Node) SourceText() string {
 	return text[startPos:end]
 }
 
+// LeadingTriviaText returns the source between the node's Pos() — the
+// position including leading whitespace and comments — and the node's
+// first significant token. Useful for detecting leading comments
+// without exposing the source file text.
+func (n *Node) LeadingTriviaText() string {
+	if n == nil || n.inner == nil {
+		return ""
+	}
+	sf := ast.GetSourceFileOfNode(n.inner)
+	if sf == nil {
+		return ""
+	}
+	text := sf.Text()
+	pos := n.inner.Pos()
+	startPos := scanner.GetTokenPosOfNode(n.inner, sf, false)
+	if pos < 0 || startPos < 0 || pos > startPos || startPos > len(text) {
+		return ""
+	}
+	return text[pos:startPos]
+}
+
 // Parent returns the parent node, or nil for the source file root.
 func (n *Node) Parent() *Node {
 	if n == nil || n.inner == nil || n.inner.Parent == nil {
