@@ -2536,6 +2536,17 @@ func (t *Type) IsAssignableTo(target *Type) bool {
 	return t.checker.IsTypeAssignableTo(t.inner, target.inner)
 }
 
+// Equal reports whether this and other refer to the identical type
+// instance — pointer equality on the underlying checker type. This is
+// stricter than mutual assignability and matches the discriminator
+// typescript-eslint uses for class-vs-this comparisons.
+func (t *Type) Equal(other *Type) bool {
+	if t == nil || other == nil {
+		return t == other
+	}
+	return t.inner == other.inner
+}
+
 // GlobalErrorType returns the global `Error` type from lib.es5.d.ts.
 // Nil when not in scope (extremely unusual).
 func (c *Checker) GlobalErrorType() *Type {
