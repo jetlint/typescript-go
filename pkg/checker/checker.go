@@ -1305,6 +1305,35 @@ func (n *Node) FunctionBody() *Node {
 	return &Node{inner: body.Body}
 }
 
+// FunctionReturnType returns the explicit return-type annotation of a
+// function-like node (`function f(): T {}` returns the `T` type-node),
+// or nil for arrow expressions, declarations without an annotation, or
+// non-function nodes.
+func (n *Node) FunctionReturnType() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	switch n.inner.Kind {
+	case ast.KindFunctionDeclaration,
+		ast.KindFunctionExpression,
+		ast.KindArrowFunction,
+		ast.KindMethodDeclaration,
+		ast.KindMethodSignature,
+		ast.KindFunctionType,
+		ast.KindConstructorType,
+		ast.KindCallSignature,
+		ast.KindConstructSignature,
+		ast.KindGetAccessor:
+	default:
+		return nil
+	}
+	t := n.inner.Type()
+	if t == nil {
+		return nil
+	}
+	return &Node{inner: t}
+}
+
 // VariableDeclarationType returns the explicit type annotation of a
 // VariableDeclaration (the `() => void` in `const f: () => void = ...`),
 // or nil for non-VariableDeclaration nodes or untyped declarations.
