@@ -3285,6 +3285,35 @@ func (n *Node) HeritageClauseToken() Kind {
 // TypeOfSymbol returns the apparent type of a symbol, useful when the
 // symbol refers to a value (e.g. `declare var Foo: { new <T>(...): any }`)
 // and the caller needs the construct/call signatures of that type.
+// NumberIndexType returns the type produced by indexing t with a
+// number — the element type for arrays/tuples and the value type for
+// objects with a numeric index signature. Walks type parameters and
+// inherited base types so an interface extending `Array<T>` returns
+// the substituted element type. Nil when t has no numeric index.
+func (c *Checker) NumberIndexType(t *Type) *Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	idx := c.inner.GetNumericIndexType(t.inner)
+	if idx == nil {
+		return nil
+	}
+	return &Type{inner: idx, checker: c.inner}
+}
+
+// NumberIndexType is the Type-method form of Checker.NumberIndexType,
+// using the type's own associated checker.
+func (t *Type) NumberIndexType() *Type {
+	if t == nil || t.checker == nil {
+		return nil
+	}
+	idx := t.checker.GetNumericIndexType(t.inner)
+	if idx == nil {
+		return nil
+	}
+	return &Type{inner: idx, checker: t.checker}
+}
+
 func (c *Checker) TypeOfSymbol(s *Symbol) *Type {
 	if c == nil || c.inner == nil || s == nil || s.inner == nil {
 		return nil
