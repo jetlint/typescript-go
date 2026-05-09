@@ -2724,6 +2724,165 @@ func (s *Symbol) IsReadonly() bool {
 	return false
 }
 
+// TypeArgumentNodes returns the type argument TypeNodes of a node that
+// has them — CallExpression, NewExpression, TaggedTemplateExpression,
+// TypeReference, ExpressionWithTypeArguments, ImportType, TypeQuery,
+// JsxOpeningElement, JsxSelfClosingElement. Empty for any other node
+// or when no type arguments are present.
+func (n *Node) TypeArgumentNodes() []*Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	switch n.inner.Kind {
+	case ast.KindCallExpression,
+		ast.KindNewExpression,
+		ast.KindTaggedTemplateExpression,
+		ast.KindTypeReference,
+		ast.KindExpressionWithTypeArguments,
+		ast.KindImportType,
+		ast.KindTypeQuery,
+		ast.KindJsxOpeningElement,
+		ast.KindJsxSelfClosingElement:
+	default:
+		return nil
+	}
+	args := n.inner.TypeArguments()
+	if len(args) == 0 {
+		return nil
+	}
+	out := make([]*Node, 0, len(args))
+	for _, a := range args {
+		out = append(out, &Node{inner: a})
+	}
+	return out
+}
+
+// TypeReferenceTypeName returns the type name node of a TypeReference
+// (the `Foo` in `Foo<X>`). Nil for other node kinds.
+func (n *Node) TypeReferenceTypeName() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTypeReference {
+		return nil
+	}
+	name := n.inner.AsTypeReferenceNode().TypeName
+	if name == nil {
+		return nil
+	}
+	return &Node{inner: name}
+}
+
+// ExpressionWithTypeArgumentsExpression returns the inner expression of
+// an ExpressionWithTypeArguments node (the `Foo` in `extends Foo<X>`).
+// Nil for other node kinds.
+func (n *Node) ExpressionWithTypeArgumentsExpression() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindExpressionWithTypeArguments {
+		return nil
+	}
+	expr := n.inner.AsExpressionWithTypeArguments().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+// TypeParameterDeclarations returns the type parameter declaration
+// nodes of a generic declaration (class/interface/typealias/function-
+// like). Empty for non-generic or unsupported nodes.
+func (n *Node) TypeParameterDeclarations() []*Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	var list *ast.NodeList
+	switch n.inner.Kind {
+	case ast.KindClassDeclaration:
+		list = n.inner.AsClassDeclaration().TypeParameters
+	case ast.KindClassExpression:
+		list = n.inner.AsClassExpression().TypeParameters
+	case ast.KindInterfaceDeclaration:
+		list = n.inner.AsInterfaceDeclaration().TypeParameters
+	case ast.KindTypeAliasDeclaration, ast.KindJSTypeAliasDeclaration:
+		list = n.inner.AsTypeAliasDeclaration().TypeParameters
+	default:
+		if fn := n.inner.FunctionLikeData(); fn != nil {
+			list = fn.TypeParameters
+		}
+	}
+	if list == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(list.Nodes))
+	for _, tp := range list.Nodes {
+		out = append(out, &Node{inner: tp})
+	}
+	return out
+}
+
+// TypeParameterDefaultType returns the default type AST node of a
+// TypeParameterDeclaration (the `U` in `<T = U>`). Nil when the
+// parameter has no default.
+func (n *Node) TypeParameterDefaultType() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTypeParameter {
+		return nil
+	}
+	def := n.inner.AsTypeParameterDeclaration().DefaultType
+	if def == nil {
+		return nil
+	}
+	return &Node{inner: def}
+}
+
+// ResolvedSignatureGeneral returns the resolved signature for any
+// invocation-like node (CallExpression, NewExpression,
+// TaggedTemplateExpression, JsxOpeningElement, JsxSelfClosingElement).
+// Returns nil for other nodes or when resolution fails.
+func (c *Checker) ResolvedSignatureGeneral(n *Node) *Signature {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return nil
+	}
+	switch n.inner.Kind {
+	case ast.KindCallExpression,
+		ast.KindNewExpression,
+		ast.KindTaggedTemplateExpression,
+		ast.KindJsxOpeningElement,
+		ast.KindJsxSelfClosingElement:
+	default:
+		return nil
+	}
+	sig := c.inner.GetResolvedSignature(n.inner)
+	if sig == nil {
+		return nil
+	}
+	return &Signature{inner: sig, checker: c.inner}
+}
+
+// SignatureDeclaration returns the AST declaration node of the
+// signature (a function-like decl), or nil for synthesized signatures.
+func (s *Signature) SignatureDeclaration() *Node {
+	if s == nil || s.inner == nil {
+		return nil
+	}
+	declFn := s.inner.Declaration
+	if declFn == nil {
+		return nil
+	}
+	d := declFn()
+	if d == nil {
+		return nil
+	}
+	return &Node{inner: d}
+}
+
+// Identical reports whether two wrapper Type values share the same
+// underlying checker.Type pointer. Useful for comparing types by
+// identity (the checker caches and de-duplicates types so identity
+// comparison matches the upstream `===` checks used by typescript-eslint
+// rules).
+func (t *Type) Identical(other *Type) bool {
+	if t == nil || other == nil || t.inner == nil || other.inner == nil {
+		return false
+	}
+	return t.inner == other.inner
+}
+
 // --- internal helpers ---
 
 type parseConfigHost struct {
