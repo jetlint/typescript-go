@@ -2878,6 +2878,35 @@ func (s *Signature) ParameterTypes() []*Type {
 	return out
 }
 
+// HasRestParameter reports whether the signature's last parameter is
+// a rest parameter (declared with leading `...`). When true, callers
+// expanding the parameter list against an argument list must walk
+// trailing arguments through the rest parameter's array/tuple element
+// types instead of treating each argument as a positional match.
+func (s *Signature) HasRestParameter() bool {
+	if s == nil || s.inner == nil {
+		return false
+	}
+	params := s.inner.Parameters()
+	if len(params) == 0 {
+		return false
+	}
+	last := params[len(params)-1]
+	if last == nil {
+		return false
+	}
+	for _, decl := range last.Declarations {
+		if decl == nil || decl.Kind != ast.KindParameter {
+			continue
+		}
+		pd := decl.AsParameterDeclaration()
+		if pd != nil && pd.DotDotDotToken != nil {
+			return true
+		}
+	}
+	return false
+}
+
 // MinArgumentCount returns the number of required parameters of the
 // signature — i.e. the count of parameters declared without `?` or
 // an initializer, before any rest parameter. This is the lower bound
