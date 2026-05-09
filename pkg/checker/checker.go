@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/bundled"
@@ -410,6 +411,22 @@ const (
 	KindTypeLiteral              = Kind(ast.KindTypeLiteral)
 	KindParameter                = Kind(ast.KindParameter)
 	KindVariableDeclarationList  = Kind(ast.KindVariableDeclarationList)
+	KindImportDeclaration        = Kind(ast.KindImportDeclaration)
+	KindImportClause             = Kind(ast.KindImportClause)
+	KindImportSpecifier          = Kind(ast.KindImportSpecifier)
+	KindImportEqualsDeclaration  = Kind(ast.KindImportEqualsDeclaration)
+	KindNamespaceImport          = Kind(ast.KindNamespaceImport)
+	KindNamedImports             = Kind(ast.KindNamedImports)
+	KindExportDeclaration        = Kind(ast.KindExportDeclaration)
+	KindExportSpecifier          = Kind(ast.KindExportSpecifier)
+	KindExportAssignment         = Kind(ast.KindExportAssignment)
+	KindNamedExports             = Kind(ast.KindNamedExports)
+	KindNamespaceExport          = Kind(ast.KindNamespaceExport)
+	KindNamespaceExportDeclaration = Kind(ast.KindNamespaceExportDeclaration)
+	KindPropertySignature        = Kind(ast.KindPropertySignature)
+	KindJsxIdentifier            = Kind(ast.KindIdentifier) // JSX uses regular identifiers in tsgo
+	KindJsxClosingElement        = Kind(ast.KindJsxClosingElement)
+	KindSuperKeyword             = Kind(ast.KindSuperKeyword)
 )
 
 // ParseFile parses a single source file from text without loading a full
@@ -1810,6 +1827,22 @@ func (t *Type) NumericLiteralValue() (float64, bool) {
 	return 0, false
 }
 
+// StringLiteralValue returns the literal string value if t is a
+// string-literal type. Returns ("", false) for non-string-literal types.
+func (t *Type) StringLiteralValue() (string, bool) {
+	if t == nil || t.inner == nil {
+		return "", false
+	}
+	if t.inner.Flags()&checker.TypeFlagsStringLiteral == 0 {
+		return "", false
+	}
+	v := t.inner.AsLiteralType().Value()
+	if s, ok := v.(string); ok {
+		return s, true
+	}
+	return "", false
+}
+
 // IsBigIntLike reports whether the type is bigint or a bigint literal.
 func (t *Type) IsBigIntLike() bool {
 	if t == nil || t.inner == nil {
@@ -2873,6 +2906,147 @@ func (s *Signature) SignatureDeclaration() *Node {
 		return nil
 	}
 	return &Node{inner: d}
+}
+
+// IsDeprecated reports whether any declaration of the symbol — or, if
+// the symbol is an alias, any declaration along the alias chain — is
+// marked with a `@deprecated` JSDoc tag. Useful for the no-deprecated
+// rule, where a deprecated tag on the imported binding, the local
+// import binding, or the original definition all count.
+func (s *Symbol) IsDeprecated() bool {
+	if s == nil || s.inner == nil {
+		return false
+	}
+	if symbolHasDeprecatedDecl(s.inner) {
+		return true
+	}
+	if s.checker == nil {
+		return false
+	}
+	cur := s.inner
+	for cur != nil && cur.Flags&ast.SymbolFlagsAlias != 0 {
+		next := s.checker.GetImmediateAliasedSymbol(cur)
+		if next == nil || next == cur {
+			break
+		}
+		if symbolHasDeprecatedDecl(next) {
+			return true
+		}
+		cur = next
+	}
+	return false
+}
+
+func symbolHasDeprecatedDecl(s *ast.Symbol) bool {
+	if s == nil {
+		return false
+	}
+	for _, d := range s.Declarations {
+		if ast.IsDeprecatedDeclaration(d) {
+			return true
+		}
+	}
+	return false
+}
+
+// DeprecationReason returns the text of the first `@deprecated` tag's
+// comment from any declaration of the symbol (walking the alias chain
+// when the symbol is an alias). Empty when the symbol is not deprecated
+// or when the tag carries no message.
+func (s *Symbol) DeprecationReason() string {
+	if s == nil || s.inner == nil {
+		return ""
+	}
+	if r := deprecationReasonFromSymbol(s.inner); r != "" {
+		return r
+	}
+	if s.checker == nil {
+		return ""
+	}
+	cur := s.inner
+	for cur != nil && cur.Flags&ast.SymbolFlagsAlias != 0 {
+		next := s.checker.GetImmediateAliasedSymbol(cur)
+		if next == nil || next == cur {
+			break
+		}
+		if r := deprecationReasonFromSymbol(next); r != "" {
+			return r
+		}
+		cur = next
+	}
+	return ""
+}
+
+func deprecationReasonFromSymbol(s *ast.Symbol) string {
+	if s == nil {
+		return ""
+	}
+	for _, d := range s.Declarations {
+		if !ast.IsDeprecatedDeclaration(d) {
+			continue
+		}
+		tag := ast.GetJSDocDeprecatedTag(d)
+		if tag == nil {
+			continue
+		}
+		return jsdocCommentText(tag.CommentList())
+	}
+	return ""
+}
+
+// IsDeprecated reports whether the signature's declaration is marked
+// `@deprecated`. Useful when a symbol carries multiple overloads but
+// only some are deprecated — the resolved signature pinpoints which.
+func (s *Signature) IsDeprecated() bool {
+	if s == nil || s.inner == nil {
+		return false
+	}
+	declFn := s.inner.Declaration
+	if declFn == nil {
+		return false
+	}
+	d := declFn()
+	if d == nil {
+		return false
+	}
+	return ast.IsDeprecatedDeclaration(d)
+}
+
+// DeprecationReason returns the text of the signature's `@deprecated`
+// tag, empty when the signature is not deprecated.
+func (s *Signature) DeprecationReason() string {
+	if s == nil || s.inner == nil {
+		return ""
+	}
+	declFn := s.inner.Declaration
+	if declFn == nil {
+		return ""
+	}
+	d := declFn()
+	if d == nil || !ast.IsDeprecatedDeclaration(d) {
+		return ""
+	}
+	tag := ast.GetJSDocDeprecatedTag(d)
+	if tag == nil {
+		return ""
+	}
+	return jsdocCommentText(tag.CommentList())
+}
+
+// jsdocCommentText concatenates the text content of a JSDoc comment
+// NodeList (which is a sequence of JSDocText/JSDocLink fragments).
+func jsdocCommentText(list *ast.NodeList) string {
+	if list == nil {
+		return ""
+	}
+	var sb strings.Builder
+	for _, n := range list.Nodes {
+		if n == nil {
+			continue
+		}
+		sb.WriteString(n.Text())
+	}
+	return sb.String()
 }
 
 // HeritageClauseToken returns the keyword Kind of a HeritageClause node
