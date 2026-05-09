@@ -1399,6 +1399,20 @@ func (c *Checker) SymbolOf(n *Node) *Symbol {
 	return &Symbol{inner: s, checker: c.inner}
 }
 
+// ShorthandAssignmentValueSymbol returns the value-binding symbol for a
+// shorthand property assignment identifier (`{ x }` reads the local
+// `x`). Returns nil for nodes that aren't shorthand assignment names.
+func (c *Checker) ShorthandAssignmentValueSymbol(n *Node) *Symbol {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	s := c.inner.GetShorthandAssignmentValueSymbol(n.inner)
+	if s == nil {
+		return nil
+	}
+	return &Symbol{inner: s, checker: c.inner}
+}
+
 // Type is the wrapper view of a checker type. Helpers are added on
 // demand as rules require them.
 type Type struct {
