@@ -208,6 +208,27 @@ func (n *Node) Pos() int { return n.inner.Pos() }
 // End returns the end offset of the node within its source file.
 func (n *Node) End() int { return n.inner.End() }
 
+// SourceText returns the literal source text spanning the node, taken
+// from the owning source file. Useful for structural equivalence
+// comparisons of expressions whose AST shapes match but whose source
+// positions differ.
+func (n *Node) SourceText() string {
+	if n == nil || n.inner == nil {
+		return ""
+	}
+	sf := ast.GetSourceFileOfNode(n.inner)
+	if sf == nil {
+		return ""
+	}
+	text := sf.Text()
+	startPos := scanner.GetTokenPosOfNode(n.inner, sf, false)
+	end := n.inner.End()
+	if startPos < 0 || end < 0 || startPos > end || end > len(text) {
+		return ""
+	}
+	return text[startPos:end]
+}
+
 // Parent returns the parent node, or nil for the source file root.
 func (n *Node) Parent() *Node {
 	if n == nil || n.inner == nil || n.inner.Parent == nil {
@@ -734,6 +755,60 @@ func (n *Node) IfCondition() *Node {
 	return &Node{inner: expr}
 }
 
+// IfThen returns the then-branch statement of an IfStatement.
+func (n *Node) IfThen() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindIfStatement {
+		return nil
+	}
+	stmt := n.inner.AsIfStatement().ThenStatement
+	if stmt == nil {
+		return nil
+	}
+	return &Node{inner: stmt}
+}
+
+// IfElse returns the else-branch statement of an IfStatement, or nil
+// when the if has no else.
+func (n *Node) IfElse() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindIfStatement {
+		return nil
+	}
+	stmt := n.inner.AsIfStatement().ElseStatement
+	if stmt == nil {
+		return nil
+	}
+	return &Node{inner: stmt}
+}
+
+// BlockStatements returns the statements of a Block.
+func (n *Node) BlockStatements() []*Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindBlock {
+		return nil
+	}
+	stmts := n.inner.AsBlock().Statements
+	if stmts == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(stmts.Nodes))
+	for _, s := range stmts.Nodes {
+		out = append(out, &Node{inner: s})
+	}
+	return out
+}
+
+// ExpressionStatementExpression returns the expression of an
+// ExpressionStatement.
+func (n *Node) ExpressionStatementExpression() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindExpressionStatement {
+		return nil
+	}
+	expr := n.inner.AsExpressionStatement().Expression
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
 // WhileCondition returns the condition expression of a WhileStatement
 // or DoStatement.
 func (n *Node) WhileCondition() *Node {
@@ -1033,6 +1108,19 @@ func (n *Node) PrefixUnaryOperator() string {
 		return "~"
 	}
 	return ""
+}
+
+// PrefixUnaryOperand returns the operand of a PrefixUnaryExpression,
+// or nil for other kinds.
+func (n *Node) PrefixUnaryOperand() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindPrefixUnaryExpression {
+		return nil
+	}
+	op := n.inner.AsPrefixUnaryExpression().Operand
+	if op == nil {
+		return nil
+	}
+	return &Node{inner: op}
 }
 
 // ConditionalBranches returns the (whenTrue, whenFalse) branches of a
