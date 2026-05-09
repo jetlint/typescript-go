@@ -195,6 +195,17 @@ func (c *Checker) HasNumericIndexSignature(t *Type) bool {
 	return c.getIndexTypeOfType(t, c.numberType) != nil
 }
 
+// GetNumericIndexType returns the type produced by indexing t with a
+// number — the element type for arrays/tuples after type-argument
+// instantiation, and the value type for objects with a numeric index
+// signature. Nil when t has no numeric index access.
+func (c *Checker) GetNumericIndexType(t *Type) *Type {
+	if t == nil {
+		return nil
+	}
+	return c.getIndexTypeOfType(t, c.numberType)
+}
+
 // AliasSymbol returns the symbol of the type alias that produced this
 // type, or nil if the type was not produced via a type alias. For
 // example, `type Foo = Promise<X> & {hey?: string}` declares an alias
