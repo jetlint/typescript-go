@@ -661,6 +661,14 @@ func (n *Node) HasProtectedModifier() bool {
 	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsProtected)
 }
 
+// HasPublicModifier reports whether n has the `public` keyword.
+func (n *Node) HasPublicModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsPublic)
+}
+
 // HasReadonlyModifier reports whether n has the `readonly` keyword.
 func (n *Node) HasReadonlyModifier() bool {
 	if n == nil || n.inner == nil {
