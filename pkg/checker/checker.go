@@ -3364,6 +3364,17 @@ func (n *Node) IsTypeOnlyExportSpecifier() bool {
 	return n.inner.AsExportSpecifier().IsTypeOnly
 }
 
+// IsOptional reports whether the symbol carries the Optional flag —
+// the marker TS sets on properties declared with `?:` and on optional
+// parameters. Distinct from a property whose type explicitly includes
+// `undefined`; both can be true.
+func (s *Symbol) IsOptional() bool {
+	if s == nil || s.inner == nil {
+		return false
+	}
+	return s.inner.Flags&ast.SymbolFlagsOptional != 0
+}
+
 // IsTypeOnly reports whether the symbol resolves only to a type (no
 // runtime value). Walks alias re-exports / re-imports to the original
 // symbol, treating any `import type` or `export type` link in the
