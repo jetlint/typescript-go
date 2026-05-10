@@ -3343,6 +3343,73 @@ func (s *Symbol) IsDeprecated() bool {
 	return false
 }
 
+// IsTypeOnlyExport reports whether n is an `export type { ... }` or
+// `export type * from '...'` declaration. False for value-flavored
+// exports including the namespace-export `export { foo }` even when
+// foo is type-only.
+func (n *Node) IsTypeOnlyExport() bool {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindExportDeclaration {
+		return false
+	}
+	return n.inner.AsExportDeclaration().IsTypeOnly
+}
+
+// IsTypeOnlyExportSpecifier reports whether n carries the inline
+// `type` marker on an `export { type X }` specifier.
+func (n *Node) IsTypeOnlyExportSpecifier() bool {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindExportSpecifier {
+		return false
+	}
+	return n.inner.AsExportSpecifier().IsTypeOnly
+}
+
+// IsTypeOnly reports whether the symbol resolves only to a type (no
+// runtime value). Walks alias re-exports / re-imports to the original
+// symbol, treating any `import type` or `export type` link in the
+// chain as immediately type-only. Returns false for value or
+// value-and-type symbols, and for unresolvable / unknown symbols.
+//
+// Mirrors typescript-eslint's `isSymbolTypeBased` helper used by
+// rules like consistent-type-exports / consistent-type-imports.
+func (s *Symbol) IsTypeOnly() bool {
+	if s == nil || s.inner == nil || s.checker == nil {
+		return false
+	}
+	cur := s.inner
+	for i := 0; i < 32; i++ {
+		if cur == nil {
+			return false
+		}
+		// `export type { X }` / `import type { X }` link → type-only
+		// at this hop regardless of where the chain leads.
+		for _, d := range cur.Declarations {
+			if ast.IsTypeOnlyImportOrExportDeclaration(d) {
+				return true
+			}
+		}
+		if cur.Flags&ast.SymbolFlagsValue != 0 {
+			return false
+		}
+		if cur.Flags&ast.SymbolFlagsAlias == 0 {
+			// Non-alias and no value flags. If there's any type-flavored
+			// flag, treat as type-only; otherwise (no flags at all =
+			// unresolved) bail conservatively.
+			const typeFlags = ast.SymbolFlagsType
+			if cur.Flags&typeFlags != 0 {
+				return true
+			}
+			return false
+		}
+		next := s.checker.GetImmediateAliasedSymbol(cur)
+		if next == nil || next == cur {
+			// Unresolvable alias — don't classify as type-only.
+			return false
+		}
+		cur = next
+	}
+	return false
+}
+
 func symbolHasDeprecatedDecl(s *ast.Symbol) bool {
 	if s == nil {
 		return false
