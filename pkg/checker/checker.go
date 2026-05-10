@@ -360,6 +360,8 @@ const (
 	KindConstructorType             = Kind(ast.KindConstructorType)
 	KindParenthesizedType           = Kind(ast.KindParenthesizedType)
 	KindThisKeyword                 = Kind(ast.KindThisKeyword)
+	KindThisType                    = Kind(ast.KindThisType)
+	KindTypeQuery                   = Kind(ast.KindTypeQuery)
 	KindIndexSignature              = Kind(ast.KindIndexSignature)
 	KindConstructSignature          = Kind(ast.KindConstructSignature)
 	KindAnyKeyword                  = Kind(ast.KindAnyKeyword)
