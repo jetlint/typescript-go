@@ -1748,6 +1748,23 @@ func (t *Type) HasIndexSignature(kind string) bool {
 	return false
 }
 
+// HasMutableIndexSignature reports whether t has any non-readonly
+// index signature. A type with such a signature can be mutated via
+// `t[k] = v` regardless of its declared properties — relevant to
+// readonly-parameter checks where the index signature itself defeats
+// the purpose of readonly fields.
+func (t *Type) HasMutableIndexSignature() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	for _, info := range t.checker.GetIndexInfosOfType(t.inner) {
+		if !info.IsReadonly() {
+			return true
+		}
+	}
+	return false
+}
+
 // PropertyNames returns the names of every apparent property on the
 // type. Intended for diagnostic introspection by rules that need to
 // detect shape-based conventions (e.g. presence of Symbol.toPrimitive).
