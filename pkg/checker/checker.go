@@ -362,6 +362,7 @@ const (
 	KindThisKeyword                 = Kind(ast.KindThisKeyword)
 	KindThisType                    = Kind(ast.KindThisType)
 	KindTypeQuery                   = Kind(ast.KindTypeQuery)
+	KindTypeParameter               = Kind(ast.KindTypeParameter)
 	KindIndexSignature              = Kind(ast.KindIndexSignature)
 	KindConstructSignature          = Kind(ast.KindConstructSignature)
 	KindAnyKeyword                  = Kind(ast.KindAnyKeyword)
