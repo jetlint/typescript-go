@@ -996,6 +996,58 @@ func (n *Node) BindingElementInitializer() *Node {
 	return &Node{inner: init}
 }
 
+// BindingElementName returns the binding-target node of a
+// BindingElement — either an Identifier (leaf) or an
+// ArrayBindingPattern / ObjectBindingPattern (nested destructuring).
+// Nil for non-BindingElement nodes.
+func (n *Node) BindingElementName() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindBindingElement {
+		return nil
+	}
+	name := n.inner.AsBindingElement().Name()
+	if name == nil {
+		return nil
+	}
+	return &Node{inner: name}
+}
+
+// BindingElementPropertyName returns the property-key node of a
+// BindingElement in an ObjectBindingPattern (the `a` in `{ a: b }`).
+// Nil when the element has no explicit propertyName (e.g., shorthand
+// `{ a }` or array-pattern elements).
+func (n *Node) BindingElementPropertyName() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindBindingElement {
+		return nil
+	}
+	pn := n.inner.AsBindingElement().PropertyName
+	if pn == nil {
+		return nil
+	}
+	return &Node{inner: pn}
+}
+
+// BindingElementIsRest reports whether the binding element carries a
+// leading `...` token (rest binding inside a pattern).
+func (n *Node) BindingElementIsRest() bool {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindBindingElement {
+		return false
+	}
+	return n.inner.AsBindingElement().DotDotDotToken != nil
+}
+
+// VariableDeclarationName returns the binding-target node of a
+// VariableDeclaration — Identifier or pattern. Nil for non-decl nodes.
+func (n *Node) VariableDeclarationName() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindVariableDeclaration {
+		return nil
+	}
+	name := n.inner.AsVariableDeclaration().Name()
+	if name == nil {
+		return nil
+	}
+	return &Node{inner: name}
+}
+
 // IsOptionalChain reports whether n is part of an optional-chain
 // expression (`x?.y`, `x?.[idx]`, `x?.()`, or any link inside a chain
 // rooted at one of those).
