@@ -102,6 +102,18 @@ func (c *Checker) IsArrayLikeType(t *Type) bool {
 	return c.isArrayLikeType(t)
 }
 
+// HasSymbolIteratorProperty reports whether t exposes a `[Symbol.iterator]`
+// property (including any inherited or augmented member). Used to detect
+// types that are spreadable / array-destructurable even when they are
+// not Array- or tuple-typed (e.g. generator returns, iterable objects).
+func (c *Checker) HasSymbolIteratorProperty(t *Type) bool {
+	name := c.getPropertyNameForKnownSymbolName("iterator")
+	if name == "" {
+		return false
+	}
+	return c.getPropertyOfType(t, name) != nil
+}
+
 func (c *Checker) GetPropertiesOfType(t *Type) []*ast.Symbol {
 	return c.getPropertiesOfType(t)
 }

@@ -2760,6 +2760,16 @@ func (t *Type) IsArrayLikeType() bool {
 	return t.checker.IsArrayLikeType(t.inner)
 }
 
+// HasSymbolIterator reports whether the type exposes a `[Symbol.iterator]`
+// property — making it array-destructurable / spreadable even when it
+// is not Array- or tuple-typed (generator returns, custom iterables).
+func (t *Type) HasSymbolIterator() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.checker.HasSymbolIteratorProperty(t.inner)
+}
+
 // TypeArguments returns the type arguments of a generic type reference
 // (e.g., the element types of a tuple, or the `T` in `Array<T>`). Empty
 // for non-generic types.
