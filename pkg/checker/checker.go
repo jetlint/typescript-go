@@ -387,6 +387,7 @@ const (
 	KindNamedTupleMember            = Kind(ast.KindNamedTupleMember)
 	KindImportType                  = Kind(ast.KindImportType)
 	KindReadonlyKeyword             = Kind(ast.KindReadonlyKeyword)
+	KindSourceFile                  = Kind(ast.KindSourceFile)
 	KindKeyOfKeyword                = Kind(ast.KindKeyOfKeyword)
 	KindUniqueKeyword               = Kind(ast.KindUniqueKeyword)
 	KindPostfixUnaryExpression      = Kind(ast.KindPostfixUnaryExpression)
@@ -1317,6 +1318,79 @@ func (n *Node) IsAwaitUsingDeclaration() bool {
 		return false
 	}
 	return ast.IsVarAwaitUsing(n.inner)
+}
+
+// IsUsingDeclaration reports whether a VariableDeclarationList /
+// VariableDeclaration is a `using` declaration. Excludes `await using`.
+func (n *Node) IsUsingDeclaration() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.IsVarUsing(n.inner)
+}
+
+// TryStatementTryBlock returns the `try { ... }` block of a TryStatement.
+func (n *Node) TryStatementTryBlock() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTryStatement {
+		return nil
+	}
+	t := n.inner.AsTryStatement().TryBlock
+	if t == nil {
+		return nil
+	}
+	return &Node{inner: t}
+}
+
+// TryStatementCatchClause returns the catch-clause of a TryStatement,
+// or nil when the try has only a finally.
+func (n *Node) TryStatementCatchClause() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTryStatement {
+		return nil
+	}
+	c := n.inner.AsTryStatement().CatchClause
+	if c == nil {
+		return nil
+	}
+	return &Node{inner: c}
+}
+
+// TryStatementFinallyBlock returns the `finally { ... }` block of a
+// TryStatement, or nil when the try has only a catch.
+func (n *Node) TryStatementFinallyBlock() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTryStatement {
+		return nil
+	}
+	f := n.inner.AsTryStatement().FinallyBlock
+	if f == nil {
+		return nil
+	}
+	return &Node{inner: f}
+}
+
+// ConditionalWhenTrue returns the `whenTrue` branch of a
+// ConditionalExpression (`cond ? whenTrue : whenFalse`).
+func (n *Node) ConditionalWhenTrue() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindConditionalExpression {
+		return nil
+	}
+	w := n.inner.AsConditionalExpression().WhenTrue
+	if w == nil {
+		return nil
+	}
+	return &Node{inner: w}
+}
+
+// ConditionalWhenFalse returns the `whenFalse` branch of a
+// ConditionalExpression (`cond ? whenTrue : whenFalse`).
+func (n *Node) ConditionalWhenFalse() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindConditionalExpression {
+		return nil
+	}
+	w := n.inner.AsConditionalExpression().WhenFalse
+	if w == nil {
+		return nil
+	}
+	return &Node{inner: w}
 }
 
 // VariableStatementDeclarationList returns the VariableDeclarationList
