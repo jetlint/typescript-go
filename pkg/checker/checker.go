@@ -3063,6 +3063,45 @@ func (s *Signature) AssertsParameterIndex() int {
 	return -1
 }
 
+// TypePredicateParameterIndex returns the parameter index that a
+// signature's `<name> is T` predicate refers to, or -1 if the
+// signature has no identifier-form type predicate. Companion to
+// AssertsParameterIndex for rules that also want to inspect arguments
+// of non-asserting predicate functions like `isString(x)`.
+func (s *Signature) TypePredicateParameterIndex() int {
+	if s == nil || s.inner == nil || s.checker == nil {
+		return -1
+	}
+	pred := s.checker.GetTypePredicateOfSignature(s.inner)
+	if pred == nil {
+		return -1
+	}
+	if pred.Kind() == checker.TypePredicateKindIdentifier {
+		return int(pred.ParameterIndex())
+	}
+	return -1
+}
+
+// TypePredicateNarrowedType returns the type a signature's predicate
+// narrows the predicated parameter to, or nil when the signature has
+// no predicate or the predicate has no explicit narrow target
+// (e.g. `asserts x` without `is T`). Useful in tandem with the
+// parameter-index accessors above.
+func (s *Signature) TypePredicateNarrowedType() *Type {
+	if s == nil || s.inner == nil || s.checker == nil {
+		return nil
+	}
+	pred := s.checker.GetTypePredicateOfSignature(s.inner)
+	if pred == nil {
+		return nil
+	}
+	t := pred.Type()
+	if t == nil {
+		return nil
+	}
+	return &Type{inner: t, checker: s.checker}
+}
+
 // Symbol is the wrapper view of a checker symbol.
 type Symbol struct {
 	inner   *ast.Symbol
