@@ -751,6 +751,21 @@ func (n *Node) PropertyAccessName() string {
 	return name.Text()
 }
 
+// PropertyAccessNameNode returns the name node of a
+// PropertyAccessExpression — the Identifier or PrivateIdentifier that
+// follows the dot. Lets callers distinguish `a.b` from `a.#b`. Nil for
+// non-PropertyAccessExpression receivers.
+func (n *Node) PropertyAccessNameNode() *Node {
+	if n == nil || n.inner == nil || !ast.IsPropertyAccessExpression(n.inner) {
+		return nil
+	}
+	name := n.inner.AsPropertyAccessExpression().Name()
+	if name == nil {
+		return nil
+	}
+	return &Node{inner: name}
+}
+
 // PropertyAccessReceiver returns the left-hand expression of a
 // PropertyAccessExpression (the `a` in `a.b`). Nil for other nodes.
 func (n *Node) PropertyAccessReceiver() *Node {
