@@ -3508,6 +3508,61 @@ func symbolHasDeprecatedDecl(s *ast.Symbol) bool {
 	return false
 }
 
+// IsDeprecatedDeclaration reports whether this AST node carries a
+// `@deprecated` JSDoc tag on the declaration itself (not via an
+// alias chain). Useful when a rule needs to distinguish "this
+// specific binding/overload is marked deprecated" from "the symbol
+// eventually resolves to something deprecated."
+func (n *Node) IsDeprecatedDeclaration() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.IsDeprecatedDeclaration(n.inner)
+}
+
+// FirstDeprecatedDeclaration walks the symbol's own declarations and
+// the alias chain (when the symbol is an alias), returning the first
+// declaration carrying a `@deprecated` JSDoc tag. Returns nil when
+// no declaration in the chain is deprecated. Useful for rules that
+// need the *kind* of the deprecation site — overload-level
+// (FunctionDeclaration / MethodDeclaration) versus binding-level
+// (ImportSpecifier / ExportSpecifier / VariableDeclaration).
+func (s *Symbol) FirstDeprecatedDeclaration() *Node {
+	if s == nil || s.inner == nil {
+		return nil
+	}
+	if d := firstDeprecatedDecl(s.inner); d != nil {
+		return &Node{inner: d}
+	}
+	if s.checker == nil {
+		return nil
+	}
+	cur := s.inner
+	for cur != nil && cur.Flags&ast.SymbolFlagsAlias != 0 {
+		next := s.checker.GetImmediateAliasedSymbol(cur)
+		if next == nil || next == cur {
+			break
+		}
+		if d := firstDeprecatedDecl(next); d != nil {
+			return &Node{inner: d}
+		}
+		cur = next
+	}
+	return nil
+}
+
+func firstDeprecatedDecl(s *ast.Symbol) *ast.Node {
+	if s == nil {
+		return nil
+	}
+	for _, d := range s.Declarations {
+		if ast.IsDeprecatedDeclaration(d) {
+			return d
+		}
+	}
+	return nil
+}
+
 // DeprecationReason returns the text of the first `@deprecated` tag's
 // comment from any declaration of the symbol (walking the alias chain
 // when the symbol is an alias). Empty when the symbol is not deprecated
