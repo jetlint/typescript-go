@@ -386,6 +386,9 @@ const (
 	KindMappedType                  = Kind(ast.KindMappedType)
 	KindNamedTupleMember            = Kind(ast.KindNamedTupleMember)
 	KindImportType                  = Kind(ast.KindImportType)
+	KindReadonlyKeyword             = Kind(ast.KindReadonlyKeyword)
+	KindKeyOfKeyword                = Kind(ast.KindKeyOfKeyword)
+	KindUniqueKeyword               = Kind(ast.KindUniqueKeyword)
 	KindPostfixUnaryExpression      = Kind(ast.KindPostfixUnaryExpression)
 	KindBarBarEqualsToken           = Kind(ast.KindBarBarEqualsToken)
 	KindMinusEqualsToken            = Kind(ast.KindMinusEqualsToken)
@@ -1457,6 +1460,17 @@ func (n *Node) ParameterTypeAnnotation() *Node {
 		return nil
 	}
 	return &Node{inner: t}
+}
+
+// TypeOperatorOperator returns the operator Kind of a TypeOperator
+// node — one of KindReadonlyKeyword, KindKeyOfKeyword, or
+// KindUniqueKeyword. Returns KindUnknown when the receiver is not a
+// TypeOperator node.
+func (n *Node) TypeOperatorOperator() Kind {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindTypeOperator {
+		return Kind(ast.KindUnknown)
+	}
+	return Kind(n.inner.AsTypeOperatorNode().Operator)
 }
 
 // PropertyDeclarationType returns the explicit type annotation of a
