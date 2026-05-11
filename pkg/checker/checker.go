@@ -390,6 +390,17 @@ const (
 	KindSourceFile                  = Kind(ast.KindSourceFile)
 	KindKeyOfKeyword                = Kind(ast.KindKeyOfKeyword)
 	KindUniqueKeyword               = Kind(ast.KindUniqueKeyword)
+	KindStaticKeyword               = Kind(ast.KindStaticKeyword)
+	KindPrivateKeyword              = Kind(ast.KindPrivateKeyword)
+	KindProtectedKeyword            = Kind(ast.KindProtectedKeyword)
+	KindPublicKeyword               = Kind(ast.KindPublicKeyword)
+	KindAbstractKeyword             = Kind(ast.KindAbstractKeyword)
+	KindAsyncKeyword                = Kind(ast.KindAsyncKeyword)
+	KindOverrideKeyword             = Kind(ast.KindOverrideKeyword)
+	KindExportKeyword               = Kind(ast.KindExportKeyword)
+	KindDefaultKeyword              = Kind(ast.KindDefaultKeyword)
+	KindDeclareKeyword              = Kind(ast.KindDeclareKeyword)
+	KindConstKeyword                = Kind(ast.KindConstKeyword)
 	KindPostfixUnaryExpression      = Kind(ast.KindPostfixUnaryExpression)
 	KindBarBarEqualsToken           = Kind(ast.KindBarBarEqualsToken)
 	KindMinusEqualsToken            = Kind(ast.KindMinusEqualsToken)
@@ -616,6 +627,33 @@ func HasAsyncModifier(n *Node) bool {
 		return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsAsync)
 	}
 	return false
+}
+
+// HasExportModifier reports whether n carries the `export` keyword
+// (e.g. `export const`, `export function`).
+func (n *Node) HasExportModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsExport)
+}
+
+// HasDefaultModifier reports whether n carries the `default` keyword
+// (typically combined with `export` for `export default class …`).
+func (n *Node) HasDefaultModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsDefault)
+}
+
+// HasOverrideModifier reports whether n carries the `override` keyword
+// (TypeScript class member overriding a base-class member).
+func (n *Node) HasOverrideModifier() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsOverride)
 }
 
 // HasDeclareModifier reports whether the node was written with the
