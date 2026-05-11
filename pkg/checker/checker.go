@@ -3039,6 +3039,30 @@ func (s *Signature) ReturnType() *Type {
 	return &Type{inner: t, checker: s.checker}
 }
 
+// AssertsParameterIndex returns the parameter index that a function
+// signature's `asserts <name>` predicate refers to, or -1 if the
+// signature has no asserts-identifier / asserts-this predicate. Useful
+// for rules that need to inspect the argument tied to an assertion
+// (e.g. flagging `assert(true)` where the always-truthy argument
+// makes the assertion vacuous).
+func (s *Signature) AssertsParameterIndex() int {
+	if s == nil || s.inner == nil || s.checker == nil {
+		return -1
+	}
+	pred := s.checker.GetTypePredicateOfSignature(s.inner)
+	if pred == nil {
+		return -1
+	}
+	switch pred.Kind() {
+	case checker.TypePredicateKindAssertsThis:
+		// `asserts this` doesn't refer to a parameter slot.
+		return -1
+	case checker.TypePredicateKindAssertsIdentifier:
+		return int(pred.ParameterIndex())
+	}
+	return -1
+}
+
 // Symbol is the wrapper view of a checker symbol.
 type Symbol struct {
 	inner   *ast.Symbol
