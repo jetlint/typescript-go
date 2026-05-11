@@ -535,6 +535,23 @@ func (c *Checker) TypeOf(n *Node) *Type {
 	return &Type{inner: t, checker: c.inner}
 }
 
+// ContextualTypeOfObjectElement returns the contextual type for an
+// object-literal element (PropertyAssignment, ShorthandPropertyAssignment,
+// MethodDeclaration, or SpreadAssignment). Useful for distinguishing
+// per-member contextual types in places where ContextualTypeOf doesn't
+// apply because the node isn't itself an expression (e.g. method
+// shorthand).
+func (c *Checker) ContextualTypeOfObjectElement(n *Node) *Type {
+	if c == nil || c.inner == nil || n == nil || n.inner == nil {
+		return nil
+	}
+	t := c.inner.GetContextualTypeForObjectLiteralElement(n.inner, checker.ContextFlagsNone)
+	if t == nil {
+		return nil
+	}
+	return &Type{inner: t, checker: c.inner}
+}
+
 // ContextualTypeForArgument returns the parameter type a call
 // expression's argument at argIndex is contextually expected to
 // satisfy. Useful for rules that check argument shape against the
@@ -2588,6 +2605,47 @@ func (t *Type) HeritageBaseTypes() []*Type {
 	return out
 }
 
+// ImplementsHeritageTypes returns the types declared on the
+// `implements` clause(s) of the class declarations attached to t's
+// symbol. Empty when t is not a class type or has no implements
+// clause. Useful for rules that need to compare a class member's
+// signature against the interface it claims to implement.
+func (t *Type) ImplementsHeritageTypes() []*Type {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sym := t.inner.Symbol()
+	if sym == nil {
+		return nil
+	}
+	var out []*Type
+	for _, decl := range sym.Declarations {
+		if !ast.IsClassDeclaration(decl) && !ast.IsClassExpression(decl) {
+			continue
+		}
+		clauses := decl.ClassLikeData().HeritageClauses
+		if clauses == nil {
+			continue
+		}
+		for _, clause := range clauses.Nodes {
+			if clause.Kind != ast.KindHeritageClause ||
+				clause.AsHeritageClause().Token != ast.KindImplementsKeyword {
+				continue
+			}
+			types := clause.AsHeritageClause().Types
+			if types == nil {
+				continue
+			}
+			for _, tn := range types.Nodes {
+				if bt := heritageBaseType(t.checker, tn); bt != nil {
+					out = append(out, &Type{inner: bt, checker: t.checker})
+				}
+			}
+		}
+	}
+	return out
+}
+
 // safeGetBaseTypes wraps Checker.GetBaseTypes with a panic recovery.
 // Upstream's getBaseTypes assumes the type's data is an InterfaceType
 // and dereferences without checking; for some object types that
@@ -3501,6 +3559,29 @@ func (n *Node) IsVoidTypeNode() bool {
 	}
 	return n.inner.Kind == ast.KindVoidKeyword
 }
+
+// IsGeneratorFunction reports whether n is a function-like node with a
+// `*` token (i.e. is a generator function expression / declaration /
+// method).
+func (n *Node) IsGeneratorFunction() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	switch n.inner.Kind {
+	case ast.KindFunctionDeclaration:
+		return n.inner.AsFunctionDeclaration().AsteriskToken != nil
+	case ast.KindFunctionExpression:
+		return n.inner.AsFunctionExpression().AsteriskToken != nil
+	case ast.KindMethodDeclaration:
+		return n.inner.AsMethodDeclaration().AsteriskToken != nil
+	}
+	return false
+}
+
+// KindVoidKeyword exposes the `void` keyword Kind for callers that need
+// to identify void type nodes by their literal Kind. Note that
+// IsVoidTypeNode is generally a better fit.
+const KindVoidKeyword = Kind(ast.KindVoidKeyword)
 
 // SymbolValueDeclaration returns the symbol's primary value
 // declaration — the declaration TypeScript treats as the canonical one
