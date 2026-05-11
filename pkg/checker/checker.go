@@ -1391,8 +1391,9 @@ func (n *Node) FunctionBody() *Node {
 
 // FunctionReturnType returns the explicit return-type annotation of a
 // function-like node (`function f(): T {}` returns the `T` type-node),
-// or nil for arrow expressions, declarations without an annotation, or
-// non-function nodes.
+// or nil for declarations without an annotation or non-function nodes.
+// Falls back to FunctionLikeData for node kinds (e.g. ArrowFunction)
+// whose ast.Node.Type() helper doesn't carry the return-type field.
 func (n *Node) FunctionReturnType() *Node {
 	if n == nil || n.inner == nil {
 		return nil
@@ -1411,11 +1412,13 @@ func (n *Node) FunctionReturnType() *Node {
 	default:
 		return nil
 	}
-	t := n.inner.Type()
-	if t == nil {
-		return nil
+	if t := n.inner.Type(); t != nil {
+		return &Node{inner: t}
 	}
-	return &Node{inner: t}
+	if fn := n.inner.FunctionLikeData(); fn != nil && fn.Type != nil {
+		return &Node{inner: fn.Type}
+	}
+	return nil
 }
 
 // VariableDeclarationType returns the explicit type annotation of a
