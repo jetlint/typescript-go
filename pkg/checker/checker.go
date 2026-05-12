@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"unsafe"
 
 	"github.com/microsoft/typescript-go/internal/ast"
 	"github.com/microsoft/typescript-go/internal/bundled"
@@ -154,6 +155,38 @@ func (p *Program) HasStrictNullChecks() bool {
 		return false
 	}
 	return opts.Strict == core.TSTrue
+}
+
+// NoPropertyAccessFromIndexSignature reports whether the program is
+// compiled with `noPropertyAccessFromIndexSignature: true`. Linter
+// rules that compare bracket and dot access (dot-notation,
+// no-unnecessary-condition) need this to know whether dot access is a
+// type-checking error for an index-signature-keyed property.
+func (p *Program) NoPropertyAccessFromIndexSignature() bool {
+	if p == nil || p.inner == nil {
+		return false
+	}
+	opts := p.inner.Options()
+	if opts == nil {
+		return false
+	}
+	return opts.NoPropertyAccessFromIndexSignature == core.TSTrue
+}
+
+// NoUncheckedIndexedAccess reports whether the program is compiled
+// with `noUncheckedIndexedAccess: true`. When enabled, indexed access
+// on arrays and string-index-signature objects widens the result to
+// include `undefined`; rules that bail on indexed access by default
+// can rely on this flag to know when bailing is no longer needed.
+func (p *Program) NoUncheckedIndexedAccess() bool {
+	if p == nil || p.inner == nil {
+		return false
+	}
+	opts := p.inner.Options()
+	if opts == nil {
+		return false
+	}
+	return opts.NoUncheckedIndexedAccess == core.TSTrue
 }
 
 func (p *Program) HasTypeErrors() bool {
@@ -645,6 +678,16 @@ func (n *Node) HasDefaultModifier() bool {
 		return false
 	}
 	return ast.HasSyntacticModifier(n.inner, ast.ModifierFlagsDefault)
+}
+
+// IsConstVariableDeclaration reports whether n is a VariableDeclaration
+// produced by a `const` binding (taking effective flags into account so
+// destructured / list-nested decls report correctly).
+func (n *Node) IsConstVariableDeclaration() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.GetCombinedNodeFlags(n.inner)&ast.NodeFlagsBlockScoped == ast.NodeFlagsConst
 }
 
 // HasOverrideModifier reports whether n carries the `override` keyword
@@ -2275,6 +2318,19 @@ func (t *Type) IsTypeParameter() bool {
 	return t.inner.Flags()&checker.TypeFlagsTypeParameter != 0
 }
 
+// IsTypeVariable reports whether the type is a generic placeholder
+// whose runtime value depends on a substitution — a type parameter
+// (`T`), an indexed access (`T[K]`), a conditional, or a
+// substitution. Linter rules that flag "always truthy" / "always
+// nullish" conditions should bail on these, since the actual value is
+// only known once the surrounding generic is instantiated.
+func (t *Type) IsTypeVariable() bool {
+	if t == nil || t.inner == nil {
+		return false
+	}
+	return t.inner.Flags()&checker.TypeFlagsInstantiableNonPrimitive != 0
+}
+
 // EnumName returns the enum type's name for an enum-literal type
 // (the parent enum's name) or for an enum type itself. Empty for
 // non-enum types or when the parent symbol is missing.
@@ -3131,6 +3187,28 @@ func containingInterfaceOrClassName(n *ast.Node) string {
 func (t *Type) Inner() *checker.Type { return t.inner }
 
 // Signature is the wrapper view of a callable signature.
+// DeclarationNode returns the function-like AST node the signature was
+// derived from, or nil for signatures the checker synthesised (default
+// callable shapes, library globals without an explicit declaration).
+// Useful for the "self-contextualised callback" check: if a contextual
+// signature's declaration equals the function expression being
+// inspected, the function has no external contextual type and is just
+// echoing its own annotation back.
+func (s *Signature) DeclarationNode() *Node {
+	if s == nil || s.inner == nil {
+		return nil
+	}
+	declFn := s.inner.Declaration
+	if declFn == nil {
+		return nil
+	}
+	declNode := declFn()
+	if declNode == nil {
+		return nil
+	}
+	return &Node{inner: declNode}
+}
+
 // SignatureDeclarationFile returns the file path of the signature's
 // declaration site, or empty string when the signature has no
 // declaration (synthesized by the checker). Callers can use this to
@@ -3339,6 +3417,35 @@ func (s *Symbol) Name() string {
 	return s.inner.Name
 }
 
+// Same reports whether n and other are wrappers around the same
+// underlying *ast.Node pointer.
+func (n *Node) Same(other *Node) bool {
+	if n == nil || other == nil {
+		return n == nil && other == nil
+	}
+	return n.inner == other.inner
+}
+
+// Same reports whether s and other are wrappers around the same
+// underlying *ast.Symbol pointer. Two distinct *Symbol wrappers can
+// safely be compared for identity through this method.
+func (s *Symbol) Same(other *Symbol) bool {
+	if s == nil || other == nil {
+		return s == nil && other == nil
+	}
+	return s.inner == other.inner
+}
+
+// ID returns a stable identifier for the symbol, usable as a map key.
+// Two wrappers around the same underlying symbol return the same ID;
+// distinct symbols return distinct IDs.
+func (s *Symbol) ID() uintptr {
+	if s == nil || s.inner == nil {
+		return 0
+	}
+	return uintptr(unsafe.Pointer(s.inner))
+}
+
 // Declarations returns the declarations of the symbol as wrapper Nodes.
 func (s *Symbol) Declarations() []*Node {
 	if s == nil || s.inner == nil {
@@ -3486,6 +3593,23 @@ func (n *Node) TypeParameterDefaultType() *Node {
 	return &Node{inner: def}
 }
 
+// SignatureOfDeclaration returns the signature declared by a function-
+// like node — function declaration/expression, arrow function, method,
+// constructor, call signature, etc. The signature exposes the
+// parameter types and the (possibly inferred) return type. Returns nil
+// when the node isn't function-like or the checker can't produce a
+// signature.
+func (c *Checker) SignatureOfDeclaration(n *Node) *Signature {
+	if n == nil || n.inner == nil || c == nil || c.inner == nil {
+		return nil
+	}
+	sig := c.inner.GetSignatureFromDeclaration(n.inner)
+	if sig == nil {
+		return nil
+	}
+	return &Signature{inner: sig, checker: c.inner}
+}
+
 // ResolvedSignatureGeneral returns the resolved signature for any
 // invocation-like node (CallExpression, NewExpression,
 // TaggedTemplateExpression, JsxOpeningElement, JsxSelfClosingElement).
@@ -3535,6 +3659,27 @@ func (t *Type) SymbolDeclarations() []*Node {
 		return nil
 	}
 	sym := t.inner.Symbol()
+	if sym == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(sym.Declarations))
+	for _, d := range sym.Declarations {
+		if d == nil {
+			continue
+		}
+		out = append(out, &Node{inner: d})
+	}
+	return out
+}
+
+// AliasSymbolDeclarations returns the declaration nodes of the type
+// alias this type was instantiated through, if any. Empty when the
+// type has no alias symbol (only its underlying symbol is meaningful).
+func (t *Type) AliasSymbolDeclarations() []*Node {
+	if t == nil || t.inner == nil {
+		return nil
+	}
+	sym := t.inner.AliasSymbol()
 	if sym == nil {
 		return nil
 	}
@@ -3661,6 +3806,36 @@ func (s *Symbol) IsDeprecated() bool {
 	return false
 }
 
+// AllDeclarationsFollowingAliases returns the declarations of this
+// symbol followed by the declarations of every symbol reached by
+// walking the alias chain. Useful for rules that need to inspect the
+// underlying function's overload set even when the symbol the rule
+// sees is an import/export alias.
+func (s *Symbol) AllDeclarationsFollowingAliases() []*Node {
+	if s == nil || s.inner == nil {
+		return nil
+	}
+	out := make([]*Node, 0, len(s.inner.Declarations))
+	for _, d := range s.inner.Declarations {
+		out = append(out, &Node{inner: d})
+	}
+	if s.checker == nil {
+		return out
+	}
+	cur := s.inner
+	for cur != nil && cur.Flags&ast.SymbolFlagsAlias != 0 {
+		next := s.checker.GetImmediateAliasedSymbol(cur)
+		if next == nil || next == cur {
+			break
+		}
+		for _, d := range next.Declarations {
+			out = append(out, &Node{inner: d})
+		}
+		cur = next
+	}
+	return out
+}
+
 // IsTypeOnlyExport reports whether n is an `export type { ... }` or
 // `export type * from '...'` declaration. False for value-flavored
 // exports including the namespace-export `export { foo }` even when
@@ -3721,9 +3896,13 @@ func (s *Symbol) IsTypeOnly() bool {
 		}
 		if cur.Flags&ast.SymbolFlagsAlias == 0 {
 			// Non-alias and no value flags. If there's any type-flavored
-			// flag, treat as type-only; otherwise (no flags at all =
-			// unresolved) bail conservatively.
-			const typeFlags = ast.SymbolFlagsType
+			// or type-only-namespace flag, treat as type-only; otherwise
+			// (no flags at all = unresolved) bail conservatively. The
+			// NamespaceModule flag identifies uninstantiated namespaces
+			// — namespaces whose members are entirely types — and must
+			// be classified as type-only to mirror upstream
+			// `isSymbolTypeBased`.
+			const typeFlags = ast.SymbolFlagsType | ast.SymbolFlagsNamespaceModule
 			if cur.Flags&typeFlags != 0 {
 				return true
 			}
@@ -3947,6 +4126,41 @@ func (t *Type) NumberIndexType() *Type {
 	return &Type{inner: idx, checker: t.checker}
 }
 
+// StringIndexType returns the type produced by indexing t with an
+// arbitrary string — the value type of a string index signature, or
+// the substituted value type of a mapped type whose key constraint
+// derives from `string`. Nil when t has no string index signature.
+func (t *Type) StringIndexType() *Type {
+	if t == nil || t.checker == nil || t.inner == nil {
+		return nil
+	}
+	idx := t.checker.GetStringIndexType(t.inner)
+	if idx == nil {
+		return nil
+	}
+	return &Type{inner: idx, checker: t.checker}
+}
+
+// IndexedAccessByLiteral returns the type produced by indexing t with
+// a string-literal key, modelling `t[name]`. Resolves through mapped
+// types (`{ [K in Lowercase<string>]: V }` accessed with `"a"` returns
+// `V` when "a" satisfies the constraint) and named properties. Nil
+// when the access has no result (the key isn't valid for t).
+func (t *Type) IndexedAccessByLiteral(name string) *Type {
+	if t == nil || t.checker == nil || t.inner == nil {
+		return nil
+	}
+	idxT := t.checker.GetStringLiteralType(name)
+	if idxT == nil {
+		return nil
+	}
+	out := t.checker.GetIndexedAccessType(t.inner, idxT)
+	if out == nil {
+		return nil
+	}
+	return &Type{inner: out, checker: t.checker}
+}
+
 func (c *Checker) TypeOfSymbol(s *Symbol) *Type {
 	if c == nil || c.inner == nil || s == nil || s.inner == nil {
 		return nil
@@ -3956,6 +4170,56 @@ func (c *Checker) TypeOfSymbol(s *Symbol) *Type {
 		return nil
 	}
 	return &Type{inner: t, checker: c.inner}
+}
+
+// ModuleSpecifier returns the string-literal expression naming the
+// module on an ImportDeclaration or ExportDeclaration. Returns nil for
+// other node kinds or when the declaration has no module specifier
+// (e.g. `export { foo }` without a `from` clause).
+func (n *Node) ModuleSpecifier() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	switch n.inner.Kind {
+	case ast.KindImportDeclaration:
+		spec := n.inner.AsImportDeclaration().ModuleSpecifier
+		if spec == nil {
+			return nil
+		}
+		return &Node{inner: spec}
+	case ast.KindExportDeclaration:
+		spec := n.inner.AsExportDeclaration().ModuleSpecifier
+		if spec == nil {
+			return nil
+		}
+		return &Node{inner: spec}
+	}
+	return nil
+}
+
+// HasExportClause reports whether an ExportDeclaration carries a named
+// or namespace export clause (e.g. `export { X }` or `export * as ns`).
+// False for bare `export *` declarations, which have no clause.
+func (n *Node) HasExportClause() bool {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindExportDeclaration {
+		return false
+	}
+	return n.inner.AsExportDeclaration().ExportClause != nil
+}
+
+// ResolveExternalModule resolves a module-specifier expression (the
+// string-literal `from '...'` part of an import/export) to the symbol
+// of the target module. Returns nil if the module cannot be resolved
+// (unknown path, missing source, or non-string specifier).
+func (c *Checker) ResolveExternalModule(specifier *Node) *Symbol {
+	if c == nil || c.inner == nil || specifier == nil || specifier.inner == nil {
+		return nil
+	}
+	sym := c.inner.ResolveExternalModuleName(specifier.inner)
+	if sym == nil {
+		return nil
+	}
+	return &Symbol{inner: sym, checker: c.inner}
 }
 
 // Identical reports whether two wrapper Type values share the same

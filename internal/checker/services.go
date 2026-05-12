@@ -239,6 +239,20 @@ func (c *Checker) GetStringIndexType(t *Type) *Type {
 	return c.getIndexTypeOfType(t, c.stringType)
 }
 
+// GetStringLiteralType returns the type for the string-literal value
+// `value` (e.g. `"foo"`). Used by tooling that needs to model an
+// indexed access by a specific key without parsing a synthetic node.
+func (c *Checker) GetStringLiteralType(value string) *Type {
+	return c.getStringLiteralType(value)
+}
+
+// GetIndexedAccessType returns the type produced by `objectType[indexType]`
+// — the result of applying the index access type operator. Returns
+// nil only for inputs that don't model as an access (rare in practice).
+func (c *Checker) GetIndexedAccessType(objectType *Type, indexType *Type) *Type {
+	return c.getIndexedAccessType(objectType, indexType)
+}
+
 func (c *Checker) GetNumberIndexType(t *Type) *Type {
 	return c.getIndexTypeOfType(t, c.numberType)
 }
