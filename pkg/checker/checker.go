@@ -1338,6 +1338,35 @@ func (n *Node) PrefixUnaryOperand() *Node {
 	return &Node{inner: op}
 }
 
+// PostfixUnaryOperator returns the operator string of a
+// PostfixUnaryExpression (one of "++" or "--"). Empty for other
+// kinds.
+func (n *Node) PostfixUnaryOperator() string {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindPostfixUnaryExpression {
+		return ""
+	}
+	switch n.inner.AsPostfixUnaryExpression().Operator {
+	case ast.KindPlusPlusToken:
+		return "++"
+	case ast.KindMinusMinusToken:
+		return "--"
+	}
+	return ""
+}
+
+// PostfixUnaryOperand returns the operand of a PostfixUnaryExpression,
+// or nil for other kinds.
+func (n *Node) PostfixUnaryOperand() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindPostfixUnaryExpression {
+		return nil
+	}
+	op := n.inner.AsPostfixUnaryExpression().Operand
+	if op == nil {
+		return nil
+	}
+	return &Node{inner: op}
+}
+
 // ConditionalBranches returns the (whenTrue, whenFalse) branches of a
 // ConditionalExpression. Both nil for non-conditional nodes.
 func (n *Node) ConditionalBranches() (whenTrue, whenFalse *Node) {
