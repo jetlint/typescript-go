@@ -475,6 +475,7 @@ const (
 	KindExclamationToken         = Kind(ast.KindExclamationToken)
 	KindSpreadAssignment         = Kind(ast.KindSpreadAssignment)
 	KindThrowStatement           = Kind(ast.KindThrowStatement)
+	KindDebuggerStatement        = Kind(ast.KindDebuggerStatement)
 	KindForOfStatement           = Kind(ast.KindForOfStatement)
 	KindForInStatement           = Kind(ast.KindForInStatement)
 	KindSwitchStatement          = Kind(ast.KindSwitchStatement)
