@@ -1334,6 +1334,21 @@ func (n *Node) ForInOrOfInitializer() *Node {
 	return nil
 }
 
+// DeclarationName returns the name node of any named declaration —
+// method, property, accessor, function, class, interface, etc. — or
+// nil when the node is not named (a Constructor, anonymous expression,
+// or non-declaration kind).
+func (n *Node) DeclarationName() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	name := n.inner.Name()
+	if name == nil {
+		return nil
+	}
+	return &Node{inner: name}
+}
+
 // IsAssignmentTarget reports whether n sits on the left-hand side of an
 // assignment expression (`a = …`), is the target of an update operator
 // (`a++`), or is destructured into (`({a} = …)`, `[a] = …`). This is the
