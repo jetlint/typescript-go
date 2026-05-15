@@ -1333,6 +1333,17 @@ func (n *Node) ForInOrOfInitializer() *Node {
 	return nil
 }
 
+// IsAssignmentTarget reports whether n sits on the left-hand side of an
+// assignment expression (`a = …`), is the target of an update operator
+// (`a++`), or is destructured into (`({a} = …)`, `[a] = …`). This is the
+// canonical TS notion of "write to this binding".
+func (n *Node) IsAssignmentTarget() bool {
+	if n == nil || n.inner == nil {
+		return false
+	}
+	return ast.IsAssignmentTarget(n.inner)
+}
+
 // IterationBody returns the body Statement of a While/Do/For/ForIn/ForOf
 // statement. Nil for other kinds.
 func (n *Node) IterationBody() *Node {
