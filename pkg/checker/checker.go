@@ -1288,6 +1288,86 @@ func (n *Node) ForStatementCondition() *Node {
 	return &Node{inner: expr}
 }
 
+// ForStatementInitializer returns the init position of a ForStatement
+// (a VariableDeclarationList or Expression). Nil when omitted or for
+// non-ForStatement nodes.
+func (n *Node) ForStatementInitializer() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindForStatement {
+		return nil
+	}
+	init := n.inner.AsForStatement().Initializer
+	if init == nil {
+		return nil
+	}
+	return &Node{inner: init}
+}
+
+// ForStatementIncrementor returns the update (rightmost) expression of
+// a ForStatement, or nil if the for has no incrementor.
+func (n *Node) ForStatementIncrementor() *Node {
+	if n == nil || n.inner == nil || n.inner.Kind != ast.KindForStatement {
+		return nil
+	}
+	expr := n.inner.AsForStatement().Incrementor
+	if expr == nil {
+		return nil
+	}
+	return &Node{inner: expr}
+}
+
+// ForInOrOfInitializer returns the left-hand binding of a
+// ForInStatement or ForOfStatement (the `k` in `for (k in xs)` or
+// `for (k of xs)`). Nil for other kinds.
+func (n *Node) ForInOrOfInitializer() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	switch n.inner.Kind {
+	case ast.KindForInStatement, ast.KindForOfStatement:
+		init := n.inner.AsForInOrOfStatement().Initializer
+		if init == nil {
+			return nil
+		}
+		return &Node{inner: init}
+	}
+	return nil
+}
+
+// IterationBody returns the body Statement of a While/Do/For/ForIn/ForOf
+// statement. Nil for other kinds.
+func (n *Node) IterationBody() *Node {
+	if n == nil || n.inner == nil {
+		return nil
+	}
+	switch n.inner.Kind {
+	case ast.KindWhileStatement:
+		s := n.inner.AsWhileStatement().Statement
+		if s == nil {
+			return nil
+		}
+		return &Node{inner: s}
+	case ast.KindDoStatement:
+		s := n.inner.AsDoStatement().Statement
+		if s == nil {
+			return nil
+		}
+		return &Node{inner: s}
+	case ast.KindForStatement:
+		s := n.inner.AsForStatement().Statement
+		if s == nil {
+			return nil
+		}
+		return &Node{inner: s}
+	case ast.KindForInStatement, ast.KindForOfStatement:
+		s := n.inner.AsForInOrOfStatement().Statement
+		if s == nil {
+			return nil
+		}
+		return &Node{inner: s}
+	}
+	return nil
+}
+
 // ConditionalCondition returns the condition (test) of a
 // ConditionalExpression `cond ? then : else`.
 func (n *Node) ConditionalCondition() *Node {
