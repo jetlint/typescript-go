@@ -90,6 +90,9 @@ func loadProgramImpl(tsconfigPath string) (*Program, error) {
 		}
 	}
 
+	// Linting never emits files; TypeScript 7 otherwise reports TS5055 for
+	// JavaScript input paths that would be overwritten by the emitted output.
+	parsed.ParsedConfig.CompilerOptions.NoEmit = core.TSTrue
 	prog := compiler.NewProgram(compiler.ProgramOptions{
 		Config: parsed,
 		Host:   host,
