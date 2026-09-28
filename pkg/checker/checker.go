@@ -19,7 +19,9 @@ import (
 	"github.com/microsoft/typescript-go/internal/checker"
 	"github.com/microsoft/typescript-go/internal/compiler"
 	"github.com/microsoft/typescript-go/internal/core"
+	"github.com/microsoft/typescript-go/internal/diagnostics"
 	"github.com/microsoft/typescript-go/internal/jsnum"
+	"github.com/microsoft/typescript-go/internal/locale"
 	"github.com/microsoft/typescript-go/internal/parser"
 	"github.com/microsoft/typescript-go/internal/scanner"
 	"github.com/microsoft/typescript-go/internal/tsoptions"
@@ -81,6 +83,12 @@ func loadProgramImpl(tsconfigPath string) (*Program, error) {
 	if parsed == nil {
 		return nil, fmt.Errorf("could not parse tsconfig content at %s", tsconfigPath)
 	}
+	for _, diagnostic := range parsed.GetConfigFileParsingDiagnostics() {
+		if diagnostic.Category() == diagnostics.CategoryError {
+			message := diagnostics.Localize(locale.Default, nil, diagnostic.MessageKey(), diagnostic.MessageArgs()...)
+			return nil, fmt.Errorf("parse %s: TS%d: %s", tsconfigPath, diagnostic.Code(), message)
+		}
+	}
 
 	prog := compiler.NewProgram(compiler.ProgramOptions{
 		Config: parsed,
@@ -88,6 +96,13 @@ func loadProgramImpl(tsconfigPath string) (*Program, error) {
 	})
 	if prog == nil {
 		return nil, fmt.Errorf("compiler.NewProgram returned nil for %s", tsconfigPath)
+	}
+
+	for _, diagnostic := range prog.GetProgramDiagnostics() {
+		if diagnostic.Category() == diagnostics.CategoryError {
+			message := diagnostics.Localize(locale.Default, nil, diagnostic.MessageKey(), diagnostic.MessageArgs()...)
+			return nil, fmt.Errorf("parse %s: TS%d: %s", tsconfigPath, diagnostic.Code(), message)
+		}
 	}
 
 	chk, cleanup := prog.GetTypeChecker(context.Background())

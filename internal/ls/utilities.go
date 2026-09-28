@@ -1269,7 +1269,7 @@ func getContainingObjectLiteralElementWorker(node *ast.Node) *ast.Node {
 			return nil
 		}
 		fallthrough
-	case ast.KindIdentifier:
+	case ast.KindIdentifier, ast.KindJsxNamespacedName:
 		if isObjectLiteralOrJsxElement(node.Parent) && (node.Parent.Parent.Kind == ast.KindObjectLiteralExpression || node.Parent.Parent.Kind == ast.KindJsxAttributes) && node.Parent.Name() == node {
 			return node.Parent
 		}
@@ -1360,7 +1360,8 @@ func getContextualTypeFromParent(node *ast.Expression, typeChecker *checker.Chec
 	case ast.KindBinaryExpression:
 		if isEqualityOperatorKind(parent.AsBinaryExpression().OperatorToken.Kind) {
 			return typeChecker.GetTypeAtLocation(
-				core.IfElse(node == parent.AsBinaryExpression().Right, parent.AsBinaryExpression().Left, parent.AsBinaryExpression().Right))
+				core.IfElse(node == parent.AsBinaryExpression().Right, parent.AsBinaryExpression().Left, parent.AsBinaryExpression().Right),
+			)
 		}
 		return typeChecker.GetContextualType(node, contextFlags)
 	case ast.KindCaseClause:
